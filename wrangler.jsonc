@@ -1,6 +1,5 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
-
   "name": "sfec",
   "main": "src/index.js",
   "compatibility_date": "2026-08-21",
@@ -25,13 +24,12 @@
     }
   ],
 
-"vars": {
-  "APP_URL": "https://ctt.sfec.skyfirst.io.vn",
-  "MAIL_FROM": "The Sky First English Club <noreply@skyfirst.io.vn>",
-  "GOOGLE_CLIENT_ID": "",
-  "GOOGLE_REDIRECT_URI": "https://ctt.sfec.skyfirst.io.vn/api/auth/google/callback",
-  "TURNSTILE_SITE_KEY": ""
-}
+  "vars": {
+    "APP_URL": "https://ctt.sfec.skyfirst.io.vn",
+    "MAIL_FROM": "The Sky First English Club <noreply@skyfirst.io.vn>",
+    "GOOGLE_CLIENT_ID": "",
+    "GOOGLE_REDIRECT_URI": "https://ctt.sfec.skyfirst.io.vn/api/auth/google/callback",
+    "TURNSTILE_SITE_KEY": ""
   },
 
   "triggers": {
