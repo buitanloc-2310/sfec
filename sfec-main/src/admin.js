@@ -89,6 +89,61 @@ export async function adminRoute(request,env,url){
   if(!user) return json({error:"AUTH_REQUIRED"},401);
   const p=url.pathname;
 
+  if(p==="/api/admin/site-pages"&&request.method==="GET"){
+    if(!(hasPermission(user,"settings.manage")||hasPermission(user,"news.manage")))return json({error:"FORBIDDEN"},403);
+    const rs=await env.DB.prepare("SELECT slug,title,kicker,status,seo_title,seo_description,cover_file_id,updated_at,updated_by FROM site_pages ORDER BY CASE slug WHEN 'home' THEN 0 WHEN 'about' THEN 1 WHEN 'journey' THEN 2 WHEN 'values' THEN 3 WHEN 'organization' THEN 4 ELSE 99 END, slug").all();
+    return json({items:rs.results||[]});
+  }
+  const sitePageMatch=p.match(/^\/api\/admin\/site-pages\/([^/]+)$/);
+  if(sitePageMatch&&request.method==="GET"){
+    if(!(hasPermission(user,"settings.manage")||hasPermission(user,"news.manage")))return json({error:"FORBIDDEN"},403);
+    const slug=decodeURIComponent(sitePageMatch[1]);
+    const row=await env.DB.prepare("SELECT * FROM site_pages WHERE slug=?").bind(slug).first();
+    if(!row)return json({error:"NOT_FOUND"},404);
+    const rev=await env.DB.prepare("SELECT id,created_at,created_by,status,title FROM site_page_revisions WHERE page_slug=? ORDER BY id DESC LIMIT 30").bind(slug).all();
+    return json({item:row,revisions:rev.results||[]});
+  }
+  if(sitePageMatch&&request.method==="PUT"){
+    if(!(hasPermission(user,"settings.manage")||hasPermission(user,"news.manage")))return json({error:"FORBIDDEN"},403);
+    const slug=decodeURIComponent(sitePageMatch[1]),body=await readJson(request)||{};
+    const current=await env.DB.prepare("SELECT * FROM site_pages WHERE slug=?").bind(slug).first();
+    if(!current)return json({error:"NOT_FOUND"},404);
+    await env.DB.prepare("INSERT INTO site_page_revisions(page_slug,title,kicker,body_html,status,seo_title,seo_description,cover_file_id,created_by) VALUES(?,?,?,?,?,?,?,?,?)")
+      .bind(slug,current.title,current.kicker,current.body_html,current.status,current.seo_title,current.seo_description,current.cover_file_id,user.id).run();
+    await env.DB.prepare("UPDATE site_pages SET title=?,kicker=?,body_html=?,status=?,seo_title=?,seo_description=?,cover_file_id=?,updated_at=CURRENT_TIMESTAMP,updated_by=? WHERE slug=?")
+      .bind(String(body.title||current.title),String(body.kicker||""),String(body.body_html||""),["published","draft","inherit"].includes(body.status)?body.status:"draft",String(body.seo_title||""),String(body.seo_description||""),body.cover_file_id||null,user.id,slug).run();
+    await audit(env,request,user,"Cập nhật nội dung website","site_page",slug,{status:body.status||"draft"});
+    return json({ok:true});
+  }
+  const siteRevMatch=p.match(/^\/api\/admin\/site-pages\/([^/]+)\/revisions\/(\d+)\/restore$/);
+  if(siteRevMatch&&request.method==="POST"){
+    if(!(hasPermission(user,"settings.manage")||hasPermission(user,"news.manage")))return json({error:"FORBIDDEN"},403);
+    const slug=decodeURIComponent(siteRevMatch[1]),rid=Number(siteRevMatch[2]);
+    const r=await env.DB.prepare("SELECT * FROM site_page_revisions WHERE id=? AND page_slug=?").bind(rid,slug).first();
+    if(!r)return json({error:"NOT_FOUND"},404);
+    await env.DB.prepare("UPDATE site_pages SET title=?,kicker=?,body_html=?,status=?,seo_title=?,seo_description=?,cover_file_id=?,updated_at=CURRENT_TIMESTAMP,updated_by=? WHERE slug=?")
+      .bind(r.title,r.kicker,r.body_html,r.status,r.seo_title,r.seo_description,r.cover_file_id,user.id,slug).run();
+    await audit(env,request,user,"Khôi phục phiên bản trang","site_page",slug,{revision_id:rid});
+    return json({ok:true});
+  }
+  if(p==="/api/admin/media"&&request.method==="GET"){
+    const deny=requirePermission(user,"file.manage");if(deny)return deny;
+    const rs=await env.DB.prepare("SELECT id,filename,mime,size,visibility,created_at FROM files WHERE visibility='public' AND mime LIKE 'image/%' ORDER BY created_at DESC LIMIT 500").all();
+    return json({items:(rs.results||[]).map(x=>({...x,url:`/api/files/${encodeURIComponent(x.id)}`}))});
+  }
+  if(p==="/api/admin/media"&&request.method==="POST"){
+    const deny=requirePermission(user,"file.manage");if(deny)return deny;
+    const fd=await request.formData(),file=fd.get("file");
+    if(!file||typeof file!=="object"||!("size" in file))return json({error:"FILE_REQUIRED"},400);
+    const maxMb=Number(await setting(env,"max_upload_mb",10));if(file.size>maxMb*1024*1024)return json({error:"FILE_TOO_LARGE"},400);
+    const allowed=new Set(["image/jpeg","image/png","image/webp","image/gif"]);if(!allowed.has(file.type))return json({error:"IMAGE_TYPE_NOT_ALLOWED"},400);
+    const idF=uid("media"),safe=String(file.name||"image").replace(/[^\p{L}\p{N}._-]+/gu,"_").slice(0,120),key=`public/site/${new Date().getUTCFullYear()}/${idF}/${safe}`;
+    await env.FILES.put(key,file.stream(),{httpMetadata:{contentType:file.type||"application/octet-stream",cacheControl:"public, max-age=31536000, immutable"}});
+    await env.DB.prepare("INSERT INTO files(id,owner_user_id,r2_key,filename,mime,size,visibility) VALUES(?,?,?,?,?,?,'public')").bind(idF,user.id,key,safe,file.type||"",file.size||0).run();
+    await audit(env,request,user,"Upload ảnh website","file",idF,{filename:safe,size:file.size});
+    return json({ok:true,id:idF,filename:safe,url:`/api/files/${encodeURIComponent(idF)}`});
+  }
+
   if(p==="/api/admin/dashboard"&&request.method==="GET"){
     const deny=requirePermission(user,"dashboard.view");if(deny)return deny;
     const [subs,pending,people,certs,tickets,approvals,tasks]=await env.DB.batch([
@@ -503,7 +558,7 @@ export async function adminRoute(request,env,url){
 
   if(p==="/api/admin/backup"&&request.method==="POST"){
     const deny=requirePermission(user,"backup.create");if(deny)return deny;
-    const tables=["settings","modules","terms","forms","units","submissions","people","people_history","teaching_scopes","internal_requests","unit_members","classes","class_enrollments","attendance","events","event_registrations","news","documents","certificates","certificate_history","approvals","interviews","evaluations","tickets","ticket_messages","notifications","email_templates","tasks","data_requests"];
+    const tables=["settings","modules","terms","forms","units","submissions","people","people_history","teaching_scopes","internal_requests","unit_members","classes","class_enrollments","attendance","events","event_registrations","news","documents","certificates","certificate_history","approvals","interviews","evaluations","tickets","ticket_messages","notifications","email_templates","tasks","data_requests","site_pages","site_page_revisions"];
     const snapshot={created_at:new Date().toISOString(),tables:{}};
     for(const t of tables){
       const rs=await env.DB.prepare(`SELECT * FROM ${t}`).all();snapshot.tables[t]=rs.results||[];

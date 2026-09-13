@@ -94,6 +94,15 @@ export async function publicRoute(request,env,url){
     });
   }
 
+  const pageMatch=p.match(/^\/api\/public\/pages\/([^/]+)$/);
+  if(pageMatch&&request.method==="GET"){
+    const slug=decodeURIComponent(pageMatch[1]);
+    const row=await env.DB.prepare("SELECT slug,title,kicker,body_html,status,seo_title,seo_description,cover_file_id,updated_at FROM site_pages WHERE slug=? AND status='published' AND length(trim(body_html))>0").bind(slug).first();
+    if(!row)return json({error:"PAGE_NOT_CUSTOMIZED"},404);
+    if(row.cover_file_id) row.cover_url=`/api/files/${encodeURIComponent(row.cover_file_id)}`;
+    return json({item:row});
+  }
+
   if(p==="/api/public/news"&&request.method==="GET"){
     const rs=await env.DB.prepare("SELECT id,title,slug,body,published_at,tags_json,cover_file_id FROM news WHERE status='published' ORDER BY COALESCE(published_at,created_at) DESC LIMIT 100").all();
     return json({items:rs.results||[]});
