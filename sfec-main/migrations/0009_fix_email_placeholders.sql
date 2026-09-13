@@ -1,4 +1,7 @@
-<!doctype html>
+-- SFEC V6.1 hotfix: sửa placeholder email hồ sơ bị gửi nguyên placeholder cho người nhận.
+UPDATE email_templates
+SET subject_template='[SFEC] Xác nhận tiếp nhận hồ sơ {{code}}',
+    html_template='<!doctype html>
 <html lang="vi">
 <head>
 <meta charset="utf-8">
@@ -194,3 +197,7 @@
 </table>
 </body>
 </html>
+',
+    text_template='SFEC đã tiếp nhận hồ sơ {{code}} của {{full_name}}. Loại đăng ký: {{form_name}}. Trạng thái: {{status}}. Tra cứu: {{lookup_url}}. Liên hệ: sfec.englishclub@gmail.com | Văn phòng & hồ sơ: sfec.vanphong@gmail.com',
+    enabled=1
+WHERE key='submission_confirmation';

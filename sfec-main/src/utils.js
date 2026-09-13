@@ -128,7 +128,17 @@ export async function rateLimit(env, key, limit=10, windowSeconds=60){
 }
 
 export function renderTemplate(template, vars){
-  return String(template||"").replace(/\{\{([a-zA-Z0-9_]+)\}\}/g,(_,k)=>String(vars[k]??""));
+  const source=String(template||"");
+  const map={};
+  for(const [k,v] of Object.entries(vars||{})){
+    map[k]=v;
+    map[String(k).toLowerCase()]=v;
+    map[String(k).toUpperCase()]=v;
+  }
+  // Hỗ trợ cả {{KEY}} chuẩn lẫn {KEY} từ các template cũ, không để placeholder thô lọt ra email.
+  return source
+    .replace(/\{\{([a-zA-Z0-9_]+)\}\}/g,(_,k)=>String(map[k]??map[k.toLowerCase()]??""))
+    .replace(/(?<!\{)\{([a-zA-Z0-9_]+)\}(?!\})/g,(_,k)=>String(map[k]??map[k.toLowerCase()]??""));
 }
 
 export function csvEscape(v){
