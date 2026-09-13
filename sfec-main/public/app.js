@@ -74,9 +74,9 @@ async function renderHome(){
       return;
     }
   }catch{}
-  app.innerHTML=hero()+`<div class="section-kicker" style="margin-top:54px">Học tập tại SFEC</div><h2 class="section-title" style="margin-top:8px">Một cổng dành riêng cho English Club</h2><div class="grid4">
+  app.innerHTML=hero()+`<div class="section-kicker" style="margin-top:54px">Học tập tại SFEC</div><h2 class="section-title" style="margin-top:8px">Một không gian học tập & cộng đồng thật sự của SFEC</h2><div class="grid4">
   ${quickCard("📘","Lớp học","Lớp 9–12, A1–A2, B1–B2, Giao tiếp và Từ vựng.","#classes")}
-  ${quickCard("🎓","Học viên","Đăng ký lớp, theo dõi lịch học và hoạt động học tập.","#form/student")}
+  ${quickCard("🎓","Học sinh / Học viên","Đăng ký lớp học, gửi hồ sơ có ảnh chân dung và nhận email xác nhận từ SFEC.","#form/student")}
   ${quickCard("🪽","Thành viên 16+","Tham gia cộng đồng học thuật và hoạt động SFEC.","#form/member")}
   ${quickCard("👩‍🏫","TNV Dạy học 18+","Ứng tuyển giảng dạy hoặc trợ giảng theo phạm vi chuyên môn.","#form/teaching")}
   </div><div class="section-kicker" style="margin-top:54px">Đội ngũ vận hành</div><h2 class="section-title" style="margin-top:8px">Cùng xây dựng SFEC</h2><div class="grid3">
@@ -86,7 +86,7 @@ async function renderHome(){
   </div><h2 class="section-title">Bản tin SFEC</h2><div class="grid" id="homeNews"></div>`;
   try{const d=await api("/api/public/news");document.getElementById("homeNews").innerHTML=(d.items||[]).slice(0,3).map(newsCard).join("")||`<div class="card muted">Chưa có bản tin.</div>`}catch{}
 }
-function quickCard(icon,title,desc,href){return `<div class="card"><div class="feature-icon" aria-hidden="true">SF</div><h3>${E(title)}</h3><p class="muted">${E(desc)}</p><a class="secondary" href="${href}">Xem chi tiết →</a></div>`}
+function quickCard(icon,title,desc,href){return `<div class="card feature-card"><div class="feature-icon" aria-hidden="true">${icon}</div><h3>${E(title)}</h3><p class="muted">${E(desc)}</p><a class="secondary" href="${href}">Xem chi tiết →</a></div>`}
 function newsExcerpt(body,max=210){const t=String(body||"").replace(/\s+/g," ").trim();return t.length>max?t.slice(0,max).trim()+"…":t}
 function newsBody(body){return E(body||"").replace(/\r?\n/g,"<br>")}
 function newsCard(n){return `<article class="card news-card"><span class="pill">${E((n.published_at||"").slice(0,10))}</span><h3>${E(n.title)}</h3><p class="muted news-excerpt">${E(newsExcerpt(n.body))}</p><a class="secondary" href="#news/${encodeURIComponent(n.id)}">Đọc bản tin →</a></article>`}
@@ -150,7 +150,7 @@ function renderPolicyPage(kind){
 
 async function renderForms(){
   const forms=state.config?.forms||[];
-  app.innerHTML=`<div class="section-kicker">Tham gia SFEC</div><h1>Chọn đúng hành trình của bạn</h1><p class="muted">SFEC chỉ hiển thị các nhóm đăng ký và tuyển chọn thuộc hoạt động của English Club.</p><div class="grid">${forms.map(f=>`<div class="card"><span class="pill">${E(f.prefix)}</span><h3>${E(f.name)}</h3><p class="muted">${E(f.description)}</p><p class="small">${f.min_age?`Điều kiện độ tuổi: từ đủ ${f.min_age} tuổi`:"Theo điều kiện của lớp/chương trình"}</p><a class="primary" href="#form/${encodeURIComponent(f.id)}">Mở đăng ký</a></div>`).join("")}</div>`;
+  app.innerHTML=`<div class="section-kicker">Tham gia SFEC</div><h1>Chọn đúng hành trình của bạn</h1><p class="muted">Mỗi biểu mẫu phục vụ một nhu cầu cụ thể. Hồ sơ được tiếp nhận tập trung bởi Văn phòng SFEC và người đăng ký nhận email xác nhận sau khi gửi thành công.</p><div class="grid">${forms.map(f=>`<div class="card"><span class="pill">${E(f.prefix)}</span><h3>${E(f.name)}</h3><p class="muted">${E(f.description)}</p><p class="small">${f.min_age?`Điều kiện độ tuổi: từ đủ ${f.min_age} tuổi`:"Theo điều kiện của lớp/chương trình"}</p><a class="primary" href="#form/${encodeURIComponent(f.id)}">Mở đăng ký</a></div>`).join("")}</div>`;
 }
 function conditionOk(cond,answers){
   if(!cond)return true;if("equals" in cond)return answers[cond.key]===cond.equals;if("not_equals" in cond)return answers[cond.key]!==cond.not_equals;return true;
@@ -160,7 +160,7 @@ function fieldHtml(f){
   if(f.type==="textarea")return `<div class="field"><label>${E(f.label)}${req}</label><textarea ${attrs}></textarea></div>`;
   if(f.type==="select")return `<div class="field"><label>${E(f.label)}${req}</label><select ${attrs}><option value="">-- Chọn --</option>${(f.options||[]).map(x=>`<option>${E(x)}</option>`).join("")}</select></div>`;
   if(f.type==="checkbox")return `<div class="check"><input type="checkbox" ${attrs}><label>${E(f.label)}${req}</label></div>`;
-  if(f.type==="file")return `<div class="field"><label>${E(f.label)}${req}</label><input type="file" ${attrs} ${f.accept?`accept="${E(f.accept.join(","))}"`:""}><div class="small muted">Tệp được lưu bảo mật trong hệ thống.</div></div>`;
+  if(f.type==="file")return `<div class="field file-field"><label>${E(f.label)}${req}</label><label class="upload-zone"><span class="upload-icon">⬆</span><b>Chọn tệp để tải lên</b><small>${(f.accept||[]).some(x=>String(x).startsWith("image/"))?"JPG, PNG hoặc WEBP · ảnh rõ mặt, đủ sáng":"Tệp được lưu bảo mật trong hệ thống"}</small><input type="file" ${attrs} ${f.accept?`accept="${E(f.accept.join(","))}"`:""}></label><div class="image-preview" data-preview-for="${E(f.key)}"></div></div>`;
   return `<div class="field"><label>${E(f.label)}${req}</label><input type="${E(f.type||"text")}" ${attrs}></div>`;
 }
 function collectFormValues(formEl,config,validate=true){
@@ -193,14 +193,13 @@ async function renderForm(idForm){
   try{
     const d=await api(`/api/forms/${encodeURIComponent(idForm)}`);state.currentForm=d;
     const c=d.form.config;
-    app.innerHTML=`<div class="form-wrap"><a class="ghost" href="#forms">← Quay lại</a><div class="card">
-      <span class="pill">${E(d.form.prefix)}</span><h1>${E(d.form.name)}</h1><p class="muted">${E(d.form.description)}</p>
+    app.innerHTML=`<div class="form-wrap"><a class="ghost" href="#forms">← Quay lại</a><div class="form-hero"><span class="form-icon">✦</span><div><span class="pill">${E(d.form.prefix)}</span><h1>${E(d.form.name)}</h1><p>${E(d.form.description)}</p><div class="form-assurance"><span>🔒 Dữ liệu được lưu bảo mật</span><span>✉️ Email xác nhận từ sfec@skyfirst.io.vn</span><span>🏢 Văn phòng SFEC tiếp nhận hồ sơ</span></div></div></div><div class="card form-card">
       ${(d.terms||[]).map(t=>`<details class="term"><summary>${E(t.code)} — ${E(t.name)} (${E(t.version)})</summary><pre>${E(t.body)}</pre></details>`).join("")}
       <form id="dynamicForm">${(c.sections||[]).map((s,i)=>`<section data-section="${i}"><h2>${E(s.title)}</h2>${(s.fields||[]).map(f=>`<div data-field-wrap="${E(f.key)}">${fieldHtml(f)}</div>`).join("")}</section>`).join("")}
       <div id="turnstileSlot"></div><div class="actions"><button class="primary" type="submit">Gửi hồ sơ</button><a class="secondary" href="#forms">Hủy</a></div></form>
     </div></div>`;
     const form=document.getElementById("dynamicForm");
-    form.addEventListener("change",()=>applyConditions(c));applyConditions(c);
+    form.addEventListener("change",e=>{applyConditions(c);const el=e.target;if(el?.type==="file"&&el.files?.[0]){const box=form.querySelector(`[data-preview-for="${CSS.escape(el.dataset.key||"")}"]`);if(box&&String(el.files[0].type||"").startsWith("image/")){const url=URL.createObjectURL(el.files[0]);box.innerHTML=`<img src="${url}" alt="Xem trước ảnh"><span>${E(el.files[0].name)}</span>`;}}});applyConditions(c);
     if(state.config.turnstile_site_key) await mountTurnstile();
     form.addEventListener("submit",async e=>{
       e.preventDefault();const {answers,files,firstBad}=collectFormValues(form,c,true);
@@ -210,7 +209,7 @@ async function renderForm(idForm){
       const btn=form.querySelector('button[type="submit"]');btn.disabled=true;btn.textContent="Đang gửi…";
       try{
         const r=await api(`/api/forms/${encodeURIComponent(idForm)}/submit`,{method:"POST",body:fd});
-        form.innerHTML=`<div class="notice good"><h2>Hồ sơ đã được tiếp nhận</h2><p><b>Mã hồ sơ: ${E(r.code)}</b></p><p>Hãy lưu mã này để tra cứu. Hệ thống cũng gửi email xác nhận nếu email gửi đi đã được cấu hình.</p><div class="actions"><a class="primary" href="#lookup">Tra cứu hồ sơ</a><a class="secondary" href="#home">Trang chủ</a></div></div>`;
+        form.innerHTML=`<div class="notice good"><h2>Hồ sơ đã được tiếp nhận</h2><p><b>Mã hồ sơ: ${E(r.code)}</b></p><p>Hãy lưu mã này để tra cứu. ${r.email_sent?`<b>Email xác nhận đã được gửi đến địa chỉ email bạn đăng ký từ sfec@skyfirst.io.vn.</b>`:`<b>Hồ sơ đã lưu thành công.</b> Email xác nhận chưa gửi được; Văn phòng SFEC vẫn đã nhận hồ sơ trên hệ thống.`}</p><div class="actions"><a class="primary" href="#lookup">Tra cứu hồ sơ</a><a class="secondary" href="#home">Trang chủ</a></div></div>`;
       }catch(err){toast(errorText(err),"bad");btn.disabled=false;btn.textContent="Gửi hồ sơ"}
     });
   }catch(err){app.innerHTML=`<div class="notice bad">${E(errorText(err))}</div>`}
@@ -298,15 +297,15 @@ async function renderPortal(){
   const d=await api("/api/me/portal");
   const member=isMember(state.user);
   const menu=[
-    ["overview","Tổng quan"],["records","Hồ sơ đăng ký"],["classes","Lớp học"],["events","Sự kiện"],["certs","GCN/GXN"],["notifications","Thông báo"],
-    ...(member?[["profile","Hồ sơ thành viên"],["requests","Yêu cầu nội bộ"],["privacy","Quyền riêng tư"]]:[]),
+    ["overview","🏠 Tổng quan"],["records","📥 Hồ sơ đăng ký"],["classes","Lớp học"],["events","Sự kiện"],["certs","GCN/GXN"],["notifications","Thông báo"],
+    ...(member?[["profile","Hồ sơ thành viên"],["requests","Yêu cầu nội bộ"],["privacy","🛡️ Quyền riêng tư"]]:[]),
     ["security","Bảo mật tài khoản"]
   ];
   const route=(location.hash.split("/")[1]||"overview");
   app.innerHTML=`<div class="dashboard"><aside class="sidebar">${menu.map(m=>`<button class="${route===m[0]?"active":""}" onclick="location.hash='portal/${m[0]}'">${m[1]}</button>`).join("")}<button onclick="logout()">↩ Đăng xuất</button></aside><div id="portalMain"></div></div>`;
   const main=document.getElementById("portalMain");
   if(route==="overview")main.innerHTML=`<h1>Hồ sơ của tôi</h1><div class="kpis"><div class="kpi"><b>${d.records.length}</b>Hồ sơ</div><div class="kpi"><b>${d.classes.length}</b>Lớp học</div><div class="kpi"><b>${d.certificates.length}</b>GCN/GXN</div><div class="kpi"><b>${d.notifications.filter(n=>!n.read_at).length}</b>Thông báo mới</div></div>${d.person?`<div class="card" style="margin-top:14px"><h3>${E(d.person.full_name)}</h3><p>${E(d.person.position||"")} • ${E(d.person.unit_code||"SFEC")}</p><span class="status">${E(d.person.status)}</span></div>`:""}`;
-  if(route==="records")main.innerHTML=listCards("Hồ sơ đăng ký",d.records,r=>`<b>${E(r.code)}</b> — ${E(r.form_id)} <span class="status">${E(r.status)}</span><br><span class="small muted">${fmt(r.created_at)}</span>`);
+  if(route==="records")main.innerHTML=listCards("📥 Hồ sơ đăng ký",d.records,r=>`<b>${E(r.code)}</b> — ${E(r.form_id)} <span class="status">${E(r.status)}</span><br><span class="small muted">${fmt(r.created_at)}</span>`);
   if(route==="classes")main.innerHTML=listCards("Lớp học của tôi",d.classes,r=>`<b>${E(r.title)}</b> — ${E(r.status)}<br><span class="small muted">${E(r.class_status)}</span>`);
   if(route==="events")main.innerHTML=listCards("Sự kiện của tôi",d.events,r=>`<b>${E(r.title)}</b> — ${E(r.status)}<br><span class="small muted">${fmt(r.start_at)}</span>`);
   if(route==="certs")main.innerHTML=listCards("GCN/GXN của tôi",d.certificates,r=>`<b>${E(r.code||"Đang chờ cấp số")}</b> — ${E(r.cert_type)}<br>${E(r.content)}<br><span class="status">${E(r.status)}</span>`);
@@ -333,12 +332,12 @@ window.disable2fa=()=>{const pw=prompt("Nhập mật khẩu để tắt 2FA:");i
 window.revokeAllSessions=()=>api("/api/me/sessions/revoke-all",{method:"POST"}).then(()=>{state.user=null;location.hash="login"}).catch(e=>toast(errorText(e),"bad"));
 
 const adminMenu=[
- {group:"",items:[["dashboard","Tổng quan"]]},
- {group:"VẬN HÀNH",items:[["approvals","Trung tâm phê duyệt"],["submissions","Hồ sơ đăng ký"],["classes","Lớp học & Điểm danh"],["events","Sự kiện & Check-in"],["tasks","Nhiệm vụ"]]},
- {group:"NHÂN SỰ",items:[["people","Hồ sơ nhân sự"],["recruitment","Tuyển dụng & Đánh giá"],["users","Tài khoản & Phân quyền"],["teaching","Phạm vi TNV Dạy học"]]},
- {group:"NỘI DUNG & WEBSITE",items:[["studio","Website Studio ✨"],["media","Thư viện Media"],["news","Bản tin & CMS"],["forms","Form Builder"],["documents","Kho văn bản"],["files","File & Minh chứng"]]},
- {group:"XÁC MINH & HỖ TRỢ",items:[["certificates","GCN & GXN"],["tickets","Hỗ trợ & Ticket"],["email","Email"]]},
- {group:"HỆ THỐNG",items:[["terms","Điều khoản & Chính sách"],["privacy","Quyền riêng tư"],["modules","Modules"],["settings","Cài đặt"],["search","Tìm kiếm"],["audit","Audit Log"],["backup","Sao lưu & Phục hồi"]]}
+ {group:"",items:[["dashboard","🏠 Tổng quan"]]},
+ {group:"VẬN HÀNH",items:[["approvals","✅ Trung tâm phê duyệt"],["submissions","📥 Hồ sơ đăng ký"],["classes","🎓 Lớp học & Điểm danh"],["events","🎉 Sự kiện & Check-in"],["tasks","📌 Nhiệm vụ"]]},
+ {group:"NHÂN SỰ",items:[["people","👥 Hồ sơ nhân sự"],["recruitment","🧭 Tuyển dụng & Đánh giá"],["users","🔐 Tài khoản & Phân quyền"],["teaching","👩‍🏫 Phạm vi TNV Dạy học"]]},
+ {group:"NỘI DUNG & WEBSITE",items:[["studio","✨ Website Studio"],["media","🖼️ Thư viện Media"],["news","📰 Bản tin & CMS"],["forms","🧩 Form Builder"],["documents","📚 Kho văn bản"],["files","📎 File & Minh chứng"]]},
+ {group:"XÁC MINH & HỖ TRỢ",items:[["certificates","🏅 GCN & GXN"],["tickets","🎫 Hỗ trợ & Ticket"],["email","✉️ Email"]]},
+ {group:"HỆ THỐNG",items:[["terms","📜 Điều khoản & Chính sách"],["privacy","🛡️ Quyền riêng tư"],["modules","🧱 Modules"],["settings","⚙️ Cài đặt"],["search","🔎 Tìm kiếm"],["audit","🧾 Audit Log"],["backup","💾 Sao lưu & Phục hồi"]]}
 ]
 async function renderAdmin(){
   if(!state.user||!isAdmin(state.user)){location.hash="login";return}
@@ -357,7 +356,7 @@ async function renderAdmin(){
     if(section==="teaching")return adminTeaching(main);
     if(section==="classes")return adminGeneric(main,"classes","Lớp học",["unit_code","title","level","status","capacity"]);
     if(section==="events")return adminGeneric(main,"events","Sự kiện",["unit_code","title","start_at","end_at","status","capacity"]);
-    if(section==="documents")return adminGeneric(main,"documents","Kho văn bản",["code","doc_type","title","visibility","status","issued_at"]);
+    if(section==="documents")return adminGeneric(main,"documents","📚 Kho văn bản",["code","doc_type","title","visibility","status","issued_at"]);
     if(section==="studio")return adminStudio(main);
     if(section==="media")return adminMedia(main);
     if(section==="news")return adminNews(main);
@@ -479,7 +478,7 @@ window.addBuilderField=si=>{const label=prompt("Nhãn câu hỏi:");if(!label)re
 window.deleteBuilderField=(si,fi)=>{state.formBuilder.config.sections[si].fields.splice(fi,1);renderFormBuilder()}
 window.moveField=(si,fi,dir)=>{const a=state.formBuilder.config.sections[si].fields,j=fi+dir;if(j<0||j>=a.length)return;[a[fi],a[j]]=[a[j],a[fi]];renderFormBuilder()}
 window.saveFormBuilder=async()=>{state.formBuilder.name=document.getElementById("fbName").value;state.formBuilder.prefix=document.getElementById("fbPrefix").value;state.formBuilder.description=document.getElementById("fbDesc").value;try{await api(`/api/admin/forms/${encodeURIComponent(state.formBuilder.id)}`,{method:"PUT",body:{name:state.formBuilder.name,prefix:state.formBuilder.prefix,description:state.formBuilder.description,audience:state.formBuilder.audience,min_age:state.formBuilder.min_age,enabled:!!state.formBuilder.enabled,recipient_email:state.formBuilder.recipient_email,config:state.formBuilder.config}});closeModal();toast("Đã lưu phiên bản biểu mẫu.");adminForms(document.getElementById("adminMain"))}catch(e){toast(errorText(e),"bad")}}
-window.createForm=()=>{const name=prompt("Tên biểu mẫu:");if(!name)return;const idForm=prompt("ID biểu mẫu (vd: scholarship):");if(!idForm)return;const prefix=prompt("Tiền tố mã hồ sơ (vd: SFEC-HB):","SFEC-FORM");if(!prefix)return;const cfg={id:idForm,name,prefix,description:"",audience:"public",term_codes:["PRIVACY/SFEC"],sections:[{title:"Thông tin",fields:[{key:"full_name",label:"Họ và tên",type:"text",required:true},{key:"email",label:"Email",type:"email",required:true}]}]};api("/api/admin/forms",{method:"POST",body:{id:idForm,name,prefix,description:"",audience:"public",config:cfg}}).then(()=>{toast("Đã tạo biểu mẫu.");adminForms(document.getElementById("adminMain"))}).catch(e=>toast(errorText(e),"bad"))}
+window.createForm=()=>{const name=prompt("Tên biểu mẫu:");if(!name)return;const idForm=prompt("ID biểu mẫu (vd: scholarship):");if(!idForm)return;const prefix=prompt("Tiền tố mã hồ sơ (vd: SFEC-HB):","SFEC-FORM");if(!prefix)return;const cfg={id:idForm,name,prefix,description:"",audience:"public",term_codes:["PRIVACY/SFEC"],sections:[{title:"Thông tin",fields:[{key:"full_name",label:"Họ và tên",type:"text",required:true},{key:"email",label:"✉️ Email",type:"email",required:true}]}]};api("/api/admin/forms",{method:"POST",body:{id:idForm,name,prefix,description:"",audience:"public",config:cfg}}).then(()=>{toast("Đã tạo biểu mẫu.");adminForms(document.getElementById("adminMain"))}).catch(e=>toast(errorText(e),"bad"))}
 
 async function adminNews(main){
   const d=await api("/api/admin/content/news");state.admin.news=d.items||[];
@@ -503,7 +502,7 @@ const genericFields={
 window.createGeneric=type=>{const body={};for(const f of genericFields[type]||[]){const v=prompt(`${f}:`,f.endsWith("_json")?"{}":"");if(v===null)return;body[f]=v;if(["capacity","assigned_to"].includes(f)&&v!=="")body[f]=Number(v)}if(type!=="units")body.id=body.id||undefined;api(`/api/admin/content/${type}`,{method:"POST",body}).then(()=>{toast("Đã thêm.");adminGeneric(document.getElementById("adminMain"),type,adminTitle(type),displayFields(type))}).catch(e=>toast(errorText(e),"bad"))}
 window.editGeneric=(type,idv)=>{const x=(state.admin[type]||[]).find(o=>String(o.id||o.code)===String(idv));if(!x)return;const body={};for(const f of genericFields[type]||[]){const v=prompt(`${f}:`,String(x[f]??""));if(v===null)return;body[f]=v;if(["capacity","assigned_to"].includes(f)&&v!=="")body[f]=Number(v)}api(`/api/admin/content/${type}/${encodeURIComponent(idv)}`,{method:"PUT",body}).then(()=>{toast("Đã cập nhật.");adminGeneric(document.getElementById("adminMain"),type,adminTitle(type),displayFields(type))}).catch(e=>toast(errorText(e),"bad"))}
 window.deleteGeneric=(type,idv)=>{if(!confirm("Xóa mục này?"))return;api(`/api/admin/content/${type}/${encodeURIComponent(idv)}`,{method:"DELETE"}).then(()=>{toast("Đã xóa.");adminGeneric(document.getElementById("adminMain"),type,adminTitle(type),displayFields(type))}).catch(e=>toast(errorText(e),"bad"))}
-function adminTitle(t){return {news:"Tin tức & CMS",classes:"Lớp học",events:"Sự kiện",documents:"Kho văn bản",tasks:"Nhiệm vụ"}[t]||t}
+function adminTitle(t){return {news:"Tin tức & CMS",classes:"Lớp học",events:"Sự kiện",documents:"📚 Kho văn bản",tasks:"📌 Nhiệm vụ"}[t]||t}
 function displayFields(t){return {news:["title","slug","status","published_at"],classes:["unit_code","title","level","status","capacity"],events:["unit_code","title","start_at","status"],units:["code","name","unit_type","manager_name","status"],documents:["code","doc_type","title","visibility","status"],tasks:["title","assigned_to","unit_code","status","priority","due_at"]}[t]||[]}
 window.attendanceTool=async()=>{const classId=prompt("ID lớp (vd SFEC-L9):");if(!classId)return;try{const d=await api(`/api/admin/class-enrollments?class_id=${encodeURIComponent(classId)}`);modal(`<h2>Điểm danh ${E(classId)}</h2>${(d.items||[]).map(x=>`<div class="card"><b>${E(x.full_name)}</b> — ${E(x.email||"")}<div class="actions"><button class="secondary" onclick="markAttendance('${E(classId)}',${x.id},'Có mặt')">Có mặt</button><button class="secondary" onclick="markAttendance('${E(classId)}',${x.id},'Có phép')">Có phép</button><button class="danger" onclick="markAttendance('${E(classId)}',${x.id},'Vắng')">Vắng</button></div></div>`).join("")||"<p>Chưa có học viên.</p>"}`)}catch(e){toast(errorText(e),"bad")}}
 window.markAttendance=(classId,enrollmentId,status)=>api("/api/admin/attendance",{method:"POST",body:{class_id:classId,enrollment_id:enrollmentId,session_date:new Date().toISOString().slice(0,10),status}}).then(()=>toast("Đã điểm danh.")).catch(e=>toast(errorText(e),"bad"))
@@ -584,7 +583,7 @@ window.deleteFile=idf=>{if(!confirm("Xóa file?"))return;api(`/api/admin/files/$
 
 async function adminEmail(main){
   const [t,l]=await Promise.all([api("/api/admin/email-templates"),api("/api/admin/email-logs")]);state.admin.emailTemplates=t.items||[];
-  main.innerHTML=`<h1>Email</h1><div class="notice">Email tiếp nhận toàn bộ đăng ký mặc định: <b>sfec.englishclub@gmail.com</b>. Dịch vụ gửi mail phải được cấu hình bằng secret ở backend.</div><h2>Mẫu email</h2>${state.admin.emailTemplates.map(x=>`<div class="card" style="margin:8px 0"><b>${E(x.key)}</b> — ${E(x.subject_template)} <button class="secondary" onclick="editEmailTemplate('${E(x.key)}')">Sửa</button></div>`).join("")}<h2 class="section-title">Nhật ký email</h2><div class="card table-scroll"><table><thead><tr><th>Đến</th><th>Template</th><th>Trạng thái</th><th>Thời gian</th><th>Lỗi</th></tr></thead><tbody>${(l.items||[]).slice(0,300).map(x=>`<tr><td>${E(x.to_email)}</td><td>${E(x.template_key)}</td><td>${E(x.status)}</td><td>${fmt(x.created_at)}</td><td>${E(x.error||"")}</td></tr>`).join("")}</tbody></table></div>`;
+  main.innerHTML=`<h1>Email</h1><div class="notice">Email tiếp nhận toàn bộ hồ sơ: <b>sfec.vanphong@gmail.com</b> · Email gửi hệ thống: <b>sfec@skyfirst.io.vn</b>. Dịch vụ gửi mail phải được cấu hình bằng secret ở backend.</div><h2>Mẫu email</h2>${state.admin.emailTemplates.map(x=>`<div class="card" style="margin:8px 0"><b>${E(x.key)}</b> — ${E(x.subject_template)} <button class="secondary" onclick="editEmailTemplate('${E(x.key)}')">Sửa</button></div>`).join("")}<h2 class="section-title">Nhật ký email</h2><div class="card table-scroll"><table><thead><tr><th>Đến</th><th>Template</th><th>Trạng thái</th><th>Thời gian</th><th>Lỗi</th></tr></thead><tbody>${(l.items||[]).slice(0,300).map(x=>`<tr><td>${E(x.to_email)}</td><td>${E(x.template_key)}</td><td>${E(x.status)}</td><td>${fmt(x.created_at)}</td><td>${E(x.error||"")}</td></tr>`).join("")}</tbody></table></div>`;
 }
 window.editEmailTemplate=key=>{const x=state.admin.emailTemplates.find(t=>t.key===key);if(!x)return;modal(`<h2>${E(key)}</h2><div class="field"><label>Tiêu đề</label><input id="etSubject" value="${E(x.subject_template)}"></div><div class="field"><label>HTML</label><textarea id="etHtml">${E(x.html_template)}</textarea></div><div class="field"><label>Text</label><textarea id="etText">${E(x.text_template||"")}</textarea></div><button class="primary" onclick="saveEmailTemplate('${E(key)}')">Lưu</button>`)}
 window.saveEmailTemplate=key=>api(`/api/admin/email-templates/${encodeURIComponent(key)}`,{method:"PUT",body:{subject_template:document.getElementById("etSubject").value,html_template:document.getElementById("etHtml").value,text_template:document.getElementById("etText").value,enabled:true}}).then(()=>{closeModal();toast("Đã lưu mẫu email.");adminEmail(document.getElementById("adminMain"))}).catch(e=>toast(errorText(e),"bad"))
@@ -597,7 +596,7 @@ window.saveModules=()=>{const items=state.admin.modules.map(m=>({key:m.key,enabl
 
 async function adminSettings(main){
   const d=await api("/api/admin/settings"),map=Object.fromEntries((d.items||[]).map(x=>[x.key,x.value]));state.admin.settings=map;
-  main.innerHTML=`<h1>Cài đặt hệ thống</h1><div class="card"><div class="field"><label>Tên hệ thống</label><input id="sAppName" value="${E(map.app_name||"")}"></div><div class="field"><label>Email nhận toàn bộ đăng ký</label><input id="sReceiver" value="${E(map.receiver_email||"sfec.englishclub@gmail.com")}"></div><div class="field"><label>Hotline/Zalo</label><input id="sHotline" value="${E(map.hotline||"0988 504 210")}"></div><div class="field"><label>Website</label><input id="sWebsite" value="${E(map.website||"")}"></div><div class="field"><label>Châm ngôn</label><input id="sSlogan" value="${E(map.brand_slogan||"")}"></div><div class="field"><label>Tiêu đề Hero</label><input id="sHeroTitle" value="${E(map.hero_title||"Học tiếng Anh. Kết nối cộng đồng. Vươn cao cùng SFEC.")}"></div><div class="field"><label>Mô tả Hero</label><textarea id="sHeroText">${E(map.hero_text||"Cổng học tập và hoạt động dành riêng cho The Sky First English Club.")}</textarea></div><div class="field"><label>Ảnh bìa Hero (URL hoặc /api/files/...)</label><input id="sHeroCover" value="${E(map.hero_cover_url||"/assets/sfec-cover.png")}"></div><div class="field"><label>Thời hạn lưu hồ sơ không phù hợp (ngày)</label><input id="sRetention" type="number" value="${E(map.rejected_application_retention_days||365)}"></div><div class="check"><input id="sMaintenance" type="checkbox" ${map.maintenance_mode?"checked":""}><label>Bật chế độ bảo trì trang công khai</label></div><button class="primary" onclick="saveSettings()">Lưu cài đặt</button></div>`;
+  main.innerHTML=`<h1>Cài đặt hệ thống</h1><div class="card"><div class="field"><label>Tên hệ thống</label><input id="sAppName" value="${E(map.app_name||"")}"></div><div class="field"><label>Email nhận toàn bộ đăng ký</label><input id="sReceiver" value="${E(map.receiver_email||"sfec.vanphong@gmail.com")}"></div><div class="field"><label>Hotline/Zalo</label><input id="sHotline" value="${E(map.hotline||"0988 504 210")}"></div><div class="field"><label>Website</label><input id="sWebsite" value="${E(map.website||"")}"></div><div class="field"><label>Châm ngôn</label><input id="sSlogan" value="${E(map.brand_slogan||"")}"></div><div class="field"><label>Tiêu đề Hero</label><input id="sHeroTitle" value="${E(map.hero_title||"Học tiếng Anh. Kết nối cộng đồng. Vươn cao cùng SFEC.")}"></div><div class="field"><label>Mô tả Hero</label><textarea id="sHeroText">${E(map.hero_text||"Cổng học tập và hoạt động dành riêng cho The Sky First English Club.")}</textarea></div><div class="field"><label>Ảnh bìa Hero (URL hoặc /api/files/...)</label><input id="sHeroCover" value="${E(map.hero_cover_url||"/assets/sfec-cover.png")}"></div><div class="field"><label>Thời hạn lưu hồ sơ không phù hợp (ngày)</label><input id="sRetention" type="number" value="${E(map.rejected_application_retention_days||365)}"></div><div class="check"><input id="sMaintenance" type="checkbox" ${map.maintenance_mode?"checked":""}><label>Bật chế độ bảo trì trang công khai</label></div><button class="primary" onclick="saveSettings()">Lưu cài đặt</button></div>`;
 }
 window.saveSettings=()=>api("/api/admin/settings",{method:"PUT",body:{items:{app_name:document.getElementById("sAppName").value,receiver_email:document.getElementById("sReceiver").value,hotline:document.getElementById("sHotline").value,website:document.getElementById("sWebsite").value,brand_slogan:document.getElementById("sSlogan").value,hero_title:document.getElementById("sHeroTitle").value,hero_text:document.getElementById("sHeroText").value,hero_cover_url:document.getElementById("sHeroCover").value,rejected_application_retention_days:Number(document.getElementById("sRetention").value)||365,maintenance_mode:document.getElementById("sMaintenance").checked}}}).then(async()=>{toast("Đã lưu cài đặt.");await loadConfig()}).catch(e=>toast(errorText(e),"bad"))
 

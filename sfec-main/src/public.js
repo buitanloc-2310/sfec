@@ -42,7 +42,7 @@ async function storeFile(env,file,{ownerUserId=null,submissionCode=null,fieldKey
   const max=maxMb*1024*1024;
   if(file.size>max) throw new Error(`FILE_TOO_LARGE:${maxMb}MB`);
   const allowed=new Set([
-    "image/jpeg","image/png","application/pdf",
+    "image/jpeg","image/png","image/webp","application/pdf",
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
   ]);
@@ -81,7 +81,7 @@ export async function publicRoute(request,env,url){
       app_url:env.APP_URL||await getSetting(env,"app_url",""),
       website:await getSetting(env,"website","https://www.skyfirst.io.vn"),
       hotline:await getSetting(env,"hotline","0988 504 210"),
-      receiver_email:await getSetting(env,"receiver_email","sfec.englishclub@gmail.com"),
+      receiver_email:await getSetting(env,"receiver_email","sfec.vanphong@gmail.com"),
       slogan:await getSetting(env,"brand_slogan",""),
       hero_title:await getSetting(env,"hero_title","Kết nối giáo dục. Phát triển cộng đồng."),
       hero_text:await getSetting(env,"hero_text","Một cổng chung cho Thành viên, Core Team, Tình nguyện viên, Học sinh/Học viên, lớp học, hoạt động, hồ sơ, GCN/GXN và quản trị The Sky First English Club."),
@@ -224,13 +224,22 @@ export async function publicRoute(request,env,url){
       else labeledAnswers[f.label]=answers[f.key]??"";
     }
     const emailParts=answersToEmail(labeledAnswers);
-    const vars={code,form_name:row.name,full_name:fullName,email,...emailParts};
-    const receiver=row.recipient_email||await getSetting(env,"receiver_email","sfec.englishclub@gmail.com");
-    await sendTemplatedEmail(env,"submission_internal",receiver,vars);
-    if(email) await sendTemplatedEmail(env,"submission_confirmation",email,vars);
+    const vars={
+      code,form_name:row.name,full_name:fullName,email,
+      submitted_at:new Date().toLocaleString("vi-VN",{timeZone:"Asia/Ho_Chi_Minh"}),
+      lookup_url:`${env.APP_URL||"https://sfec.skyfirst.io.vn"}/#lookup`,
+      photo_note:fileIds.profile_photo?"Ảnh chân dung đã được tiếp nhận và lưu cùng hồ sơ.":"",
+      phone:String(answers.phone||answers.phone_number||answers.mobile||""),
+      status:"Đã tiếp nhận",
+      profile_image_block:fileIds.profile_photo?`<div style="padding:22px 12px;text-align:center;color:#51698f;font-size:13px;line-height:1.6">✓ Ảnh chân dung đã được tải lên và lưu an toàn cùng hồ sơ SFEC.</div>`:`<div style="padding:22px 12px;text-align:center;color:#8a98ad;font-size:13px">Không có ảnh chân dung trong hồ sơ này.</div>`,
+      ...emailParts
+    };
+    const receiver=row.recipient_email||await getSetting(env,"receiver_email","sfec.vanphong@gmail.com");
+    const internalMail=await sendTemplatedEmail(env,"submission_internal",receiver,vars);
+    const applicantMail=email?await sendTemplatedEmail(env,"submission_confirmation",email,vars):null;
 
-    await audit(env,request,user,"Tiếp nhận hồ sơ","submission",code,{form_id:idForm});
-    return json({ok:true,code,status:"Đã tiếp nhận"});
+    await audit(env,request,user,"Tiếp nhận hồ sơ","submission",code,{form_id:idForm,internal_email_ok:!!internalMail?.ok,applicant_email_ok:!!applicantMail?.ok});
+    return json({ok:true,code,status:"Đã tiếp nhận",email_sent:!!applicantMail?.ok});
   }
 
   if(p==="/api/lookup/submission"&&request.method==="GET"){

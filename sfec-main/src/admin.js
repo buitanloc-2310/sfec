@@ -334,7 +334,7 @@ export async function adminRoute(request,env,url){
     const body=await readJson(request)||{},idForm=String(body.id||uid("form")).replace(/[^a-zA-Z0-9_-]/g,"");
     if(!body.name||!body.prefix||!body.config) return json({error:"INVALID_INPUT"},400);
     await env.DB.prepare("INSERT INTO forms(id,name,prefix,description,audience,min_age,enabled,recipient_email,version,config_json,updated_by) VALUES(?,?,?,?,?,?,1,?,1,?,?)")
-      .bind(idForm,body.name,body.prefix,body.description||"",body.audience||"public",body.min_age??null,body.recipient_email||"sfec.englishclub@gmail.com",JSON.stringify(body.config),user.id).run();
+      .bind(idForm,body.name,body.prefix,body.description||"",body.audience||"public",body.min_age??null,body.recipient_email||"sfec.vanphong@gmail.com",JSON.stringify(body.config),user.id).run();
     await audit(env,request,user,"Tạo biểu mẫu","form",idForm,{name:body.name});return json({ok:true,id:idForm});
   }
   const formMatch=p.match(/^\/api\/admin\/forms\/([^/]+)$/);

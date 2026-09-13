@@ -17,7 +17,7 @@ export async function sendEmail(env,{to,subject,html,text,templateKey=""}){
         method:"POST",
         headers:{"content-type":"application/json","authorization":`Bearer ${env.RESEND_API_KEY}`},
         body:JSON.stringify({
-          from:env.MAIL_FROM||"The Sky First English Club <noreply@skyfirst.io.vn>",
+          from:env.MAIL_FROM||"SFEC · The Sky First English Club <sfec@skyfirst.io.vn>",
           to:[to],subject,html,text
         })
       });
@@ -31,7 +31,7 @@ export async function sendEmail(env,{to,subject,html,text,templateKey=""}){
     if(env.EMAIL?.send){
       const result=await env.EMAIL.send({
         to,
-        from:env.MAIL_FROM||"noreply@skyfirst.io.vn",
+        from:env.MAIL_FROM||"sfec@skyfirst.io.vn",
         subject,html,text
       });
       await logEmail(env,to,templateKey,subject,"sent",result?.messageId||"","");
