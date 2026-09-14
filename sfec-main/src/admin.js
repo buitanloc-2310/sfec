@@ -4,6 +4,47 @@ import {getAuthUser, requirePermission, createInvitedAccount} from "./auth.js";
 import {hasPermission, highestRoleLevel, roleLevel} from "./permissions.js";
 import {sendTemplatedEmail} from "./email.js";
 
+
+async function ensureSiteStudioSchema(env){
+  // Website Studio was introduced in migration 0006.
+  // Keep the admin usable even when an existing production D1 has not yet
+  // received that migration (a common cause of the endless “Đang tải…” state).
+  await env.DB.batch([
+    env.DB.prepare(`CREATE TABLE IF NOT EXISTS site_pages (
+      slug TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      kicker TEXT NOT NULL DEFAULT '',
+      body_html TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'inherit',
+      seo_title TEXT NOT NULL DEFAULT '',
+      seo_description TEXT NOT NULL DEFAULT '',
+      cover_file_id TEXT,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_by INTEGER
+    )`),
+    env.DB.prepare(`CREATE TABLE IF NOT EXISTS site_page_revisions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      page_slug TEXT NOT NULL,
+      title TEXT NOT NULL,
+      kicker TEXT NOT NULL DEFAULT '',
+      body_html TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL,
+      seo_title TEXT NOT NULL DEFAULT '',
+      seo_description TEXT NOT NULL DEFAULT '',
+      cover_file_id TEXT,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      created_by INTEGER
+    )`),
+    env.DB.prepare(`CREATE INDEX IF NOT EXISTS idx_site_page_revisions_slug ON site_page_revisions(page_slug, id DESC)`),
+    env.DB.prepare(`INSERT OR IGNORE INTO site_pages(slug,title,kicker,status) VALUES
+      ('home','Trang chủ','WEBSITE CHÍNH THỨC CỦA SFEC','inherit'),
+      ('about','Giới thiệu SFEC','GIỚI THIỆU SFEC','inherit'),
+      ('journey','Hành trình phát triển','HÀNH TRÌNH PHÁT TRIỂN','inherit'),
+      ('values','Định hướng & Giá trị','ĐỊNH HƯỚNG & GIÁ TRỊ','inherit'),
+      ('organization','Cơ cấu & Hệ sinh thái','CƠ CẤU & HỆ SINH THÁI','inherit')`)
+  ]);
+}
+
 async function audit(env,request,user,action,entityType="",entityId="",details={}){
   await env.DB.prepare("INSERT INTO audit_log(actor_user_id,actor_email,action,entity_type,entity_id,details_json,ip_hash) VALUES(?,?,?,?,?,?,?)")
     .bind(user?.id||null,user?.email||"",action,entityType,entityId,JSON.stringify(details),await ipHash(request)).run();
@@ -91,12 +132,14 @@ export async function adminRoute(request,env,url){
 
   if(p==="/api/admin/site-pages"&&request.method==="GET"){
     if(!(hasPermission(user,"settings.manage")||hasPermission(user,"news.manage")))return json({error:"FORBIDDEN"},403);
+    await ensureSiteStudioSchema(env);
     const rs=await env.DB.prepare("SELECT slug,title,kicker,status,seo_title,seo_description,cover_file_id,updated_at,updated_by FROM site_pages ORDER BY CASE slug WHEN 'home' THEN 0 WHEN 'about' THEN 1 WHEN 'journey' THEN 2 WHEN 'values' THEN 3 WHEN 'organization' THEN 4 ELSE 99 END, slug").all();
     return json({items:rs.results||[]});
   }
   const sitePageMatch=p.match(/^\/api\/admin\/site-pages\/([^/]+)$/);
   if(sitePageMatch&&request.method==="GET"){
     if(!(hasPermission(user,"settings.manage")||hasPermission(user,"news.manage")))return json({error:"FORBIDDEN"},403);
+    await ensureSiteStudioSchema(env);
     const slug=decodeURIComponent(sitePageMatch[1]);
     const row=await env.DB.prepare("SELECT * FROM site_pages WHERE slug=?").bind(slug).first();
     if(!row)return json({error:"NOT_FOUND"},404);
@@ -105,6 +148,7 @@ export async function adminRoute(request,env,url){
   }
   if(sitePageMatch&&request.method==="PUT"){
     if(!(hasPermission(user,"settings.manage")||hasPermission(user,"news.manage")))return json({error:"FORBIDDEN"},403);
+    await ensureSiteStudioSchema(env);
     const slug=decodeURIComponent(sitePageMatch[1]),body=await readJson(request)||{};
     const current=await env.DB.prepare("SELECT * FROM site_pages WHERE slug=?").bind(slug).first();
     if(!current)return json({error:"NOT_FOUND"},404);
@@ -118,6 +162,7 @@ export async function adminRoute(request,env,url){
   const siteRevMatch=p.match(/^\/api\/admin\/site-pages\/([^/]+)\/revisions\/(\d+)\/restore$/);
   if(siteRevMatch&&request.method==="POST"){
     if(!(hasPermission(user,"settings.manage")||hasPermission(user,"news.manage")))return json({error:"FORBIDDEN"},403);
+    await ensureSiteStudioSchema(env);
     const slug=decodeURIComponent(siteRevMatch[1]),rid=Number(siteRevMatch[2]);
     const r=await env.DB.prepare("SELECT * FROM site_page_revisions WHERE id=? AND page_slug=?").bind(rid,slug).first();
     if(!r)return json({error:"NOT_FOUND"},404);

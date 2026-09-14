@@ -345,33 +345,37 @@ async function renderAdmin(){
   app.innerHTML=`<div class="dashboard"><aside class="sidebar"><div class="admin-brand"><b>SFEC</b><span>HỆ THỐNG QUẢN TRỊ</span></div>${adminMenu.map(g=>`${g.group?`<div class="admin-group-title">${g.group}</div>`:""}${g.items.map(m=>`<button class="${section===m[0]?"active":""}" onclick="location.hash='admin/${m[0]}'">${m[1]}</button>`).join("")}`).join("")}<button class="admin-logout" onclick="logout()">Đăng xuất</button></aside><section id="adminMain"><div class="loading">Đang tải…</div></section></div>`;
   const main=document.getElementById("adminMain");
   try{
-    if(section==="dashboard")return adminDashboard(main);
-    if(section==="approvals")return adminApprovals(main);
-    if(section==="submissions")return adminSubmissions(main);
-    if(section==="users")return adminUsers(main);
-    if(section==="people")return adminPeople(main);
-    if(section==="recruitment")return adminRecruitment(main);
-    if(section==="forms")return adminForms(main);
-    if(section==="terms")return adminTerms(main);
-    if(section==="teaching")return adminTeaching(main);
-    if(section==="classes")return adminGeneric(main,"classes","Lớp học",["unit_code","title","level","status","capacity"]);
-    if(section==="events")return adminGeneric(main,"events","Sự kiện",["unit_code","title","start_at","end_at","status","capacity"]);
-    if(section==="documents")return adminGeneric(main,"documents","📚 Kho văn bản",["code","doc_type","title","visibility","status","issued_at"]);
-    if(section==="studio")return adminStudio(main);
-    if(section==="media")return adminMedia(main);
-    if(section==="news")return adminNews(main);
-    if(section==="tasks")return adminGeneric(main,"tasks","Nhiệm vụ & Bàn giao",["title","description","assigned_to","unit_code","status","priority","due_at"]);
-    if(section==="certificates")return adminCertificates(main);
-    if(section==="tickets")return adminTickets(main);
-    if(section==="privacy")return adminPrivacy(main);
-    if(section==="files")return adminFiles(main);
-    if(section==="email")return adminEmail(main);
-    if(section==="modules")return adminModules(main);
-    if(section==="settings")return adminSettings(main);
-    if(section==="search")return adminSearch(main);
-    if(section==="audit")return adminAudit(main);
-    if(section==="backup")return adminBackup(main);
-  }catch(err){main.innerHTML=`<div class="notice bad">${E(errorText(err))}</div>`}
+    if(section==="dashboard")await adminDashboard(main);
+    else if(section==="approvals")await adminApprovals(main);
+    else if(section==="submissions")await adminSubmissions(main);
+    else if(section==="users")await adminUsers(main);
+    else if(section==="people")await adminPeople(main);
+    else if(section==="recruitment")await adminRecruitment(main);
+    else if(section==="forms")await adminForms(main);
+    else if(section==="terms")await adminTerms(main);
+    else if(section==="teaching")await adminTeaching(main);
+    else if(section==="classes")await adminGeneric(main,"classes","Lớp học",["unit_code","title","level","status","capacity"]);
+    else if(section==="events")await adminGeneric(main,"events","Sự kiện",["unit_code","title","start_at","end_at","status","capacity"]);
+    else if(section==="documents")await adminGeneric(main,"documents","📚 Kho văn bản",["code","doc_type","title","visibility","status","issued_at"]);
+    else if(section==="studio")await adminStudio(main);
+    else if(section==="media")await adminMedia(main);
+    else if(section==="news")await adminNews(main);
+    else if(section==="tasks")await adminGeneric(main,"tasks","Nhiệm vụ & Bàn giao",["title","description","assigned_to","unit_code","status","priority","due_at"]);
+    else if(section==="certificates")await adminCertificates(main);
+    else if(section==="tickets")await adminTickets(main);
+    else if(section==="privacy")await adminPrivacy(main);
+    else if(section==="files")await adminFiles(main);
+    else if(section==="email")await adminEmail(main);
+    else if(section==="modules")await adminModules(main);
+    else if(section==="settings")await adminSettings(main);
+    else if(section==="search")await adminSearch(main);
+    else if(section==="audit")await adminAudit(main);
+    else if(section==="backup")await adminBackup(main);
+    else main.innerHTML='<div class="notice bad">Không tìm thấy mục quản trị này.</div>';
+  }catch(err){
+    console.error('Admin section load failed:',section,err);
+    main.innerHTML=`<div class="notice bad"><b>Không thể tải mục này.</b><br>${E(errorText(err))}<div class="small muted" style="margin-top:8px">Nếu vừa cập nhật hệ thống, hãy chạy migration D1 rồi tải lại trang.</div></div>`;
+  }
 }
 async function adminDashboard(main){
   const d=await api("/api/admin/dashboard");const c=d.counts;
