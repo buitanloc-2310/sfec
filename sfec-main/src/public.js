@@ -262,11 +262,45 @@ export async function publicRoute(request,env,url){
   }
 
   if(p==="/api/lookup/certificate"&&request.method==="GET"){
-    const code=String(url.searchParams.get("code")||"").trim().toUpperCase();
-    const row=await env.DB.prepare("SELECT code,cert_type,full_name,content,status,issued_at,metadata_json,email FROM certificates WHERE code=? AND status IN ('issued','revoked','reissued')").bind(code).first();
-    if(!row) return json({error:"NOT_FOUND"},404,{'Access-Control-Allow-Origin':'*','Vary':'Origin','Cache-Control':'no-store'});
-    const {email,...publicRow}=row;
-    return json({item:publicRow},200,{'Access-Control-Allow-Origin':'*','Vary':'Origin','Cache-Control':'no-store'});
+    const code=String(url.searchParams.get("code")||"").trim();
+    const headers={'Access-Control-Allow-Origin':'*','Vary':'Origin','Cache-Control':'no-store'};
+    if(!code||code.length>180) return json({error:"INVALID_CODE"},400,headers);
+    // The authoritative issuer is the Sky First credential registry, not the SFEC D1.
+    // Try the documented compatibility lookup first, then the public credential endpoint.
+    const urls=[
+      `https://ctt.skyfirst.io.vn/api/lookup/certificate?code=${encodeURIComponent(code)}`,
+      `https://ctt.skyfirst.io.vn/api/public/credentials/${encodeURIComponent(code)}`
+    ];
+    let hadNetworkFailure=false;
+    for(const target of urls){
+      try{
+        const response=await fetch(target,{headers:{accept:"application/json"},signal:AbortSignal.timeout(4500),redirect:"follow"});
+        if(response.status===404) continue;
+        if(!response.ok){if(response.status>=500||response.status===429)hadNetworkFailure=true;continue;}
+        const contentType=response.headers.get("content-type")||"";
+        if(!contentType.includes("application/json")){hadNetworkFailure=true;continue;}
+        const payload=await response.json();
+        const source=payload?.item||payload?.credential||payload?.data?.item||payload?.data||payload;
+        if(!source||typeof source!=="object"||Array.isArray(source)){hadNetworkFailure=true;continue;}
+        const sourceStatus=String(source.status||source.state||source.verification_status||"").toLowerCase();
+        const status=["issued","reissued","valid","active","verified","đã cấp","hợp lệ"].includes(sourceStatus)?(sourceStatus==="reissued"?"reissued":"issued"):["revoked","withdrawn","cancelled","canceled","đã thu hồi","thu hồi"].includes(sourceStatus)?"revoked":sourceStatus||"unknown";
+        const result={
+          code:source.code||source.certificate_code||source.credential_code||code,
+          cert_type:source.cert_type||source.type||source.credential_type||"",
+          full_name:source.full_name||source.recipient_name||source.holder_name||source.name||"",
+          content:source.content||source.title||source.description||source.program_name||"",
+          status:status||"unknown",
+          issued_at:source.issued_at||source.issue_date||source.issued_date||null,
+          metadata_json:JSON.stringify({issuer_name:source.issuer_name||source.issuer?.name||source.issuer||"",owner_name:source.owner_name||source.parent_organization||"Mạng lưới Giáo dục & Phát triển Cộng đồng Sky First (Sky First Network – SFN)",registry_no:source.registry_no||source.registry_number||"",source:"ctt.skyfirst.io.vn"})
+        };
+        // Never echo private email, portrait, internal notes, or source payload wholesale.
+        if(!result.code||!result.full_name||!result.status){hadNetworkFailure=true;continue;}
+        return json({item:result,source:"authoritative_registry"},200,headers);
+      }catch{hadNetworkFailure=true;}
+    }
+    return hadNetworkFailure
+      ? json({error:"VERIFICATION_UNAVAILABLE",message:"Chưa xác minh được từ nguồn phát hành có thẩm quyền."},503,headers)
+      : json({error:"NOT_FOUND"},404,headers);
   }
 
   return null;

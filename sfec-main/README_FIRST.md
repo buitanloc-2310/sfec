@@ -42,3 +42,9 @@ Không commit `.env`, API token, OAuth secret, Turnstile secret, khóa riêng t�
 
 ## Tài liệu cũ trong repository
 Một số tệp như `FINAL_AUDIT.md`, `UPGRADE_SFEC_*.md`, `V6_*` và các ghi chú phiên bản cũ được giữ lại làm lịch sử tham khảo. Nếu nội dung cũ mâu thuẫn với cấu hình hiện tại, hãy ưu tiên README này và `SFEC_IMMERSIVE_REBUILD_REPORT.md`; không coi các tài liệu snapshot cũ là trạng thái production hiện tại.
+
+## Bản kiểm toán/sửa chữa website — 09/10/2026
+
+Bản ZIP bàn giao mới được đóng gói với `package.json`, `wrangler.jsonc`, `src/`, `public/` và `migrations/` ngay tại thư mục gốc của ZIP. Không cần mở thêm một thư mục `sfec-main/` trước khi đặt source vào repository. Xem `SFEC_FULL_AUDIT_REPAIR_REPORT.md` và `docs/DEPLOYMENT_CHECKLIST.md` để phân biệt build với deploy, các thay đổi đã thực hiện và những kiểm thử production còn phải chạy.
+
+Lưu ý: bản source chưa tự động deploy lên `sfec.skyfirst.io.vn`. Không chạy migration từ xa hoặc deploy production trước khi kiểm tra lịch sử migration, backup D1/R2 và xác nhận của người quản lý hệ thống.

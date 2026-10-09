@@ -59,18 +59,6 @@ async function nextCounter(env,key){
   return Number(r?.value||1);
 }
 
-async function makeCertificateCode(env,kind,year){
-  const alphabet="ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  const yearSuffix=`XX${String(year).slice(-2)}`;
-  for(let attempt=0;attempt<12;attempt++){
-    const bytes=new Uint8Array(8);crypto.getRandomValues(bytes);
-    const id=Array.from(bytes,b=>alphabet[b%alphabet.length]).join("");
-    const code=`${id}/${kind}-SFEC/${yearSuffix}`;
-    const existing=await env.DB.prepare("SELECT id FROM certificates WHERE code=?").bind(code).first();
-    if(!existing)return code;
-  }
-  throw new Error("CERTIFICATE_CODE_GENERATION_FAILED");
-}
 function parseBodyJson(row,key){
   try{return JSON.parse(row?.[key]||"{}")}catch{return {}}
 }
@@ -513,6 +501,7 @@ export async function adminRoute(request,env,url){
     const can=hasPermission(user,"approval.request")||hasPermission(user,"submission.manage")||hasPermission(user,"approval.manage");
     if(!can)return json({error:"FORBIDDEN"},403);
     const body=await readJson(request)||{};if(!body.entity_type||!body.entity_id||!body.action)return json({error:"INVALID_INPUT"},400);
+    if(String(body.entity_type).toLowerCase()==="certificate")return json({error:"ISSUANCE_NOT_AUTHORIZED",message:"SFEC không tiếp nhận hoặc điều phối quy trình cấp GCN/GXN. Vui lòng sử dụng hệ thống của đơn vị phát hành có thẩm quyền."},403);
     const idA=uid("approval");
     await env.DB.prepare("INSERT INTO approvals(id,entity_type,entity_id,action,requested_by,assigned_role,status,due_at,note) VALUES(?,?,?,?,?,?,'pending',?,?)")
       .bind(idA,body.entity_type,body.entity_id,body.action,user.id,body.assigned_role||"club_secretary",body.due_at||null,body.note||"").run();
@@ -530,11 +519,9 @@ export async function adminRoute(request,env,url){
     const idA=decodeURIComponent(approvalMatch[1]),body=await readJson(request)||{},status=body.status;
     if(!["approved","rejected","needs_more_info"].includes(status))return json({error:"INVALID_STATUS"},400);
     const a=await env.DB.prepare("SELECT * FROM approvals WHERE id=?").bind(idA).first();if(!a)return json({error:"NOT_FOUND"},404);
+    if(String(a.entity_type).toLowerCase()==="certificate")return json({error:"ISSUANCE_NOT_AUTHORIZED",message:"SFEC không có thẩm quyền phê duyệt, phát hành hoặc thu hồi GCN/GXN."},403);
     await env.DB.prepare("UPDATE approvals SET status=?,note=?,decided_by=?,decided_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE id=?")
       .bind(status,body.note||"",user.id,idA).run();
-    if(a.entity_type==="certificate"&&status==="approved"){
-      await env.DB.prepare("UPDATE certificates SET status='approved',approved_by=?,approved_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(user.id,a.entity_id).run();
-    }
     const requester=await env.DB.prepare("SELECT email,full_name FROM users WHERE id=?").bind(a.requested_by).first();
     if(requester?.email) await sendTemplatedEmail(env,"approval_status",requester.email,{full_name:requester.full_name||requester.email,reference:idA,action:a.action||"Yêu cầu phê duyệt",status,note:body.note||""});
     await audit(env,request,user,"Quyết định phê duyệt","approval",idA,{status,note:body.note||""});return json({ok:true});
@@ -545,38 +532,15 @@ export async function adminRoute(request,env,url){
     const rs=await env.DB.prepare("SELECT * FROM certificates ORDER BY created_at DESC LIMIT 1000").all();return json({items:rs.results||[]});
   }
   if(p==="/api/admin/certificates"&&request.method==="POST"){
-    const deny=requirePermission(user,"certificate.request");if(deny)return deny;
-    const body=await readJson(request)||{};
-    if(!body.full_name||!body.content||!body.cert_type)return json({error:"INVALID_INPUT"},400);
-    const idC=uid("cert"),token=uid("verify");
-    await env.DB.prepare("INSERT INTO certificates(id,cert_type,full_name,email,content,status,requested_by,verification_token,metadata_json) VALUES(?,?,?,?,?,'pending_approval',?,?,?)")
-      .bind(idC,body.cert_type,body.full_name,body.email||"",body.content,user.id,token,JSON.stringify(body.metadata||{})).run();
-    const idA=uid("approval");
-    await env.DB.prepare("INSERT INTO approvals(id,entity_type,entity_id,action,requested_by,assigned_role,status,due_at) VALUES(?,'certificate',?,'Phê duyệt cấp GCN/GXN',?,'club_secretary','pending',datetime('now','+7 days'))")
-      .bind(idA,idC,user.id).run();
-    await audit(env,request,user,"Đề nghị cấp GCN/GXN","certificate",idC,{approval:idA});return json({ok:true,id:idC,approval_id:idA});
+    // SFEC is not an authorized certificate issuer. Keep existing records readable,
+    // but do not create new certificate records or simulate an issuance workflow here.
+    return json({error:"ISSUANCE_NOT_AUTHORIZED",message:"SFEC không có thẩm quyền tạo hoặc phát hành GCN/GXN. Vui lòng thực hiện tại đơn vị phát hành được ủy quyền của Sky First Network."},403);
   }
   const certMatch=p.match(/^\/api\/admin\/certificates\/([^/]+)$/);
   if(certMatch&&request.method==="PATCH"){
-    const idC=decodeURIComponent(certMatch[1]),body=await readJson(request)||{};
-    const current=await env.DB.prepare("SELECT * FROM certificates WHERE id=?").bind(idC).first();if(!current)return json({error:"NOT_FOUND"},404);
-    if(body.action==="issue"){
-      const deny=requirePermission(user,"certificate.issue");if(deny)return deny;
-      if(current.status!=="approved")return json({error:"NOT_APPROVED"},409);
-      const year=new Date().getFullYear(),kind=current.cert_type.toLowerCase().includes("xác nhận")?"GXN":"GCN";
-      const code=await makeCertificateCode(env,kind,year);
-      await env.DB.prepare("UPDATE certificates SET code=?,status='issued',issued_by=?,issued_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE id=?")
-        .bind(code,user.id,idC).run();
-      await env.DB.prepare("INSERT INTO certificate_history(certificate_id,action,note,actor_id) VALUES(?,'Phát hành',?,?)").bind(idC,body.note||"",user.id).run();
-      await audit(env,request,user,"Phát hành GCN/GXN","certificate",idC,{code});return json({ok:true,code});
-    }
-    if(body.action==="revoke"){
-      const deny=requirePermission(user,"certificate.issue");if(deny)return deny;
-      await env.DB.prepare("UPDATE certificates SET status='revoked',updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(idC).run();
-      await env.DB.prepare("INSERT INTO certificate_history(certificate_id,action,note,actor_id) VALUES(?,'Thu hồi',?,?)").bind(idC,body.note||"",user.id).run();
-      await audit(env,request,user,"Thu hồi GCN/GXN","certificate",idC,{note:body.note||""});return json({ok:true});
-    }
-    return json({error:"INVALID_ACTION"},400);
+    // Prevent issue/revoke/edit through SFEC API regardless of role grants.
+    // Historical records and lookup remain available and are not modified.
+    return json({error:"ISSUANCE_NOT_AUTHORIZED",message:"SFEC chỉ được tra cứu thông tin GCN từ nguồn có thẩm quyền; không được phát hành, sửa hoặc thu hồi GCN."},403);
   }
 
   if(p==="/api/admin/interviews"&&request.method==="POST"){
