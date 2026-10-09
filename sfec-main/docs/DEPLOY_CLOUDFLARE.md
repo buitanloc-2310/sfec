@@ -1,148 +1,52 @@
-# TRIỂN KHAI SFEC PRODUCTION MASTER LÊN CLOUDFLARE
+# Triển khai SFEC trên Cloudflare — quy trình an toàn
 
-## A. Chuẩn bị
+Website SFEC dùng domain riêng `https://sfec.skyfirst.io.vn`, Worker `sfec`, D1 binding `DB` và R2 binding `FILES`. Gói mã nguồn này **chưa được triển khai**; migration `0010_sfec_experience_governance.sql` **chưa được áp dụng lên D1 production**.
 
-Mở PowerShell/Terminal tại thư mục `SFEC_Production_Master`.
+## 1. Chuẩn bị trước khi thay đổi
+
+1. Xác minh Cloudflare account, Worker, D1 database và bucket R2 thực sự thuộc môi trường cần cập nhật. Không tạo database mới để thay thế cơ sở dữ liệu đang có.
+2. Sao lưu D1 và danh sách/đối tượng R2 theo quy trình vận hành hiện tại; xác minh có thể truy xuất bản backup.
+3. Kiểm tra migration history của D1 đích; không chạy lại `0001_schema.sql`–`0009_fix_email_placeholders.sql` trên database đang vận hành.
+4. Review các thay đổi trong mã nguồn, migration `0010`, chính sách truy cập và kế hoạch rollback. Ưu tiên staging hoặc bản sao D1 trước production.
+5. Không đưa `.env`, API token, OAuth client secret, Turnstile secret hoặc mật khẩu vào ZIP/repository.
+
+## 2. Kiểm tra cục bộ
 
 ```powershell
 npm install
-npx wrangler login
-```
-
-## B. Tạo D1
-
-```powershell
-npx wrangler d1 create sfec-app-db
-```
-
-Cloudflare sẽ trả về `database_id`. Mở `wrangler.jsonc` và thay:
-
-```text
-REPLACE_WITH_YOUR_D1_DATABASE_ID
-```
-
-bằng ID thật.
-
-## C. Tạo R2
-
-```powershell
-npx wrangler r2 bucket create sfec-app-files
-```
-
-Bucket mặc định là private. File hồ sơ chỉ được tải qua Worker sau khi kiểm tra quyền.
-
-## D. Tạo bảng + dữ liệu khởi tạo
-
-```powershell
-npm run db:migrate
-```
-
-Migrations gồm:
-
-- `0001_schema.sql`: toàn bộ database.
-- `0002_seed.sql`: vai trò, modules, settings, DK-01, DK-02, privacy, 9 form, SFEC, lớp mẫu, email template và Super Admin.
-
-## E. Email
-
-### Cách dễ dùng khi DNS chính không nhất thiết nằm ở Cloudflare: Resend/API provider
-
-1. Xác minh địa chỉ/domain gửi ở provider.
-2. Đặt secret:
-
-```powershell
-npx wrangler secret put RESEND_API_KEY
-```
-
-3. Trong `wrangler.jsonc`, `MAIL_FROM` hiện mặc định:
-
-```text
-The Sky First English Club <noreply@skyfirst.io.vn>
-```
-
-Nếu sender đã xác minh là địa chỉ khác, sửa `MAIL_FROM` cho đúng.
-
-### Cloudflare Email Service
-
-Source cũng hỗ trợ `env.EMAIL.send(...)`. Nếu domain đã onboard Cloudflare Email Service, bạn có thể thêm `send_email` binding vào `wrangler.jsonc` theo Dashboard/docs Cloudflare.
-
-## F. Google OAuth — tùy chọn
-
-Nếu muốn nút **Tiếp tục với Google** hoạt động:
-
-- tạo OAuth Client trong Google Cloud;
-- Authorized redirect URI:
-
-```text
-https://sfec.skyfirst.io.vn/api/auth/google/callback
-```
-
-- điền `GOOGLE_CLIENT_ID` trong `wrangler.jsonc`;
-- đặt Client Secret:
-
-```powershell
-npx wrangler secret put GOOGLE_CLIENT_SECRET
-```
-
-Nếu chưa cấu hình, nút Google tự ẩn; email + mật khẩu vẫn dùng bình thường.
-
-## G. Turnstile — tùy chọn nhưng khuyến nghị
-
-- điền `TURNSTILE_SITE_KEY` trong `wrangler.jsonc`;
-- đặt secret:
-
-```powershell
-npx wrangler secret put TURNSTILE_SECRET_KEY
-```
-
-Nếu không cấu hình, biểu mẫu vẫn hoạt động và backend vẫn có rate limiting cơ bản.
-
-## H. Deploy
-
-```powershell
 npm run validate
-npm run deploy
 ```
 
-Sau deploy, kiểm tra:
+`npm run validate` kiểm tra các file bắt buộc và cú pháp JavaScript; nó không xác minh kết nối production D1/R2, gửi email, quyền camera hay toàn bộ hành trình người dùng.
 
-```text
-https://<worker-url>/api/health
-```
+## 3. Migration
 
-Kỳ vọng:
+`migrations/0010_sfec_experience_governance.sql` cập nhật thiết lập/thương hiệu, nhãn vai trò và trạng thái module/form trong khi giữ nguyên ID vai trò, dữ liệu người dùng, hồ sơ gửi, chứng nhận và mã GCN đã phát hành. Form ngoài phạm vi được vô hiệu hóa chứ không xóa.
 
-```json
-{"ok":true,"production":true,"database":true,"storage":true}
-```
+Chỉ áp dụng migration **sau khi đã backup, xác minh đúng D1/migration history, thử trên staging và được chủ quản phê duyệt**. Không chạy lệnh migration remote trong bước kiểm tra cục bộ. Do database thực tế có thể đã khác bản migration sạch, phải so sánh trạng thái D1 hiện hữu trước khi áp dụng.
 
-## I. Gắn domain chính
+## 4. Secrets và email
 
-Domain vận hành hiện tại của app là:
+- Public contact/mặc định mới: `sfec@skyfirst.io.vn`.
+- Sender mặc định trong `wrangler.jsonc`: `SFEC · Sky First Education Club <sfec@skyfirst.io.vn>`; provider phải xác minh sender/domain trước khi gửi.
+- Nếu dùng Resend, nhập `RESEND_API_KEY` bằng Cloudflare secrets; không ghi token vào file.
+- Nếu dùng Google OAuth hoặc Turnstile, kiểm tra Client ID, redirect URI và secrets riêng trên đúng môi trường.
+- Định danh Super Admin cũ `sfec.englishclub@gmail.com` được giữ cho tương thích tài khoản hiện có, không làm địa chỉ liên hệ công khai.
 
-```text
-https://sfec.skyfirst.io.vn
-```
+## 5. Deploy có phê duyệt
 
-Gắn custom domain/route theo cách bạn đang sử dụng trên Cloudflare. Chỉ gắn sau khi Worker URL hoạt động ổn.
+Sau khi hoàn tất backup, staging và review, người quản trị có thể deploy bản đã duyệt bằng quy trình Cloudflare của dự án. Không deploy production tự động từ gói ZIP này.
 
-## J. Đăng nhập lần đầu
+## 6. Kiểm thử bắt buộc sau deploy
 
-- Email: `sfec.englishclub@gmail.com`
-- Thông tin đăng nhập quản trị không được đóng gói trong bản phát hành; dùng tài khoản quản trị hiện có hoặc quy trình đặt lại mật khẩu của hệ thống.
-- Hệ thống bắt buộc đổi mật khẩu.
-- Sau đó vào **Bảo mật tài khoản → Thiết lập 2FA**.
+1. Kiểm tra domain `sfec.skyfirst.io.vn`, HTTPS, tiêu đề, favicon/logo, giao diện máy tính/điện thoại và điều hướng menu.
+2. Kiểm tra đăng nhập, đăng xuất, phiên làm việc và quyền từng vai trò; thử gọi trực tiếp API nhân sự/tuyển chọn bằng tài khoản không thuộc nhóm quản trị cấp SFN để xác nhận bị từ chối.
+3. Kiểm tra đăng ký một lớp/chương trình giáo dục và một sự kiện đang bật; xác nhận các form ngoài phạm vi không nhận submissions mới, nhưng dữ liệu cũ còn nguyên.
+4. Kiểm tra email nội bộ và email xác nhận thực tế.
+5. Kiểm tra GCN cũ, mã mới `XXXXXXXX/GCN-SFEC/XX26`, trạng thái thu hồi, URL QR và quét QR bằng camera/tệp ảnh.
+6. Kiểm tra ảnh chân dung trên thẻ in dọc; chọn “Lưu dưới dạng PDF” và xác nhận bố cục trên trình duyệt được hỗ trợ.
+7. Kiểm tra file upload/access control, log lỗi, backup và quy trình khôi phục.
 
-## K. Kiểm thử bắt buộc trước khi công bố
+## 7. Điều kiện hoàn tất
 
-1. Đăng nhập Super Admin.
-2. Cấp 01 tài khoản Thành viên thử nghiệm.
-3. Gửi 01 hồ sơ Core Team.
-4. Gửi 01 hồ sơ TNV dạy học.
-5. Gửi 01 đăng ký lớp SFEC.
-6. Gửi 01 Support ticket.
-7. Kiểm tra hồ sơ xuất hiện trên máy khác.
-8. Kiểm tra email về `sfec.englishclub@gmail.com`.
-9. Đổi trạng thái hồ sơ và kiểm tra email người nộp.
-10. Tạo GCN → phê duyệt → phát hành → tra cứu mã.
-11. Upload và mở file bằng tài khoản có quyền; thử mở khi chưa đăng nhập để bảo đảm bị chặn.
-12. Tạo backup.
+Chỉ công bố hoàn tất sau khi ghi lại kết quả test trên môi trường đích. Nếu camera QR, email provider, R2 hoặc quyền thực tế chưa được thử, báo cáo phải ghi rõ là chưa xác minh.

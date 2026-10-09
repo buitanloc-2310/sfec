@@ -3,8 +3,8 @@
   "short_name": "SFEC",
   "start_url": "/#home",
   "display": "standalone",
-  "background_color": "#f5f8fc",
-  "theme_color": "#0e56b2",
+  "background_color": "#061b38",
+  "theme_color": "#061b38",
   "icons": [
     {
       "src": "/assets/sfec-logo.png",
@@ -17,5 +17,5 @@
       "type": "image/png"
     }
   ],
-  "description": "Câu lạc bộ Giáo dục Sky First thuộc hệ sinh thái Sky First Network."
+  "description": "SFEC — mô hình giáo dục trực thuộc Sky First Network."
 }

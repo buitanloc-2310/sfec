@@ -1,22 +1,43 @@
-# SFEC V3 — DEPLOY FIRST
+# SFEC — Sky First Education Club
 
-Đây là bản SFEC độc lập về giao diện và nghiệp vụ, dùng domain `https://sfec.skyfirst.io.vn`.
+**Website:** https://sfec.skyfirst.io.vn  
+**Mô hình:** Câu lạc bộ Giáo dục Sky First, trực thuộc Sky First Network (SFN).
 
-## Nếu cập nhật hệ thống SFEC đang chạy
-1. Upload/commit toàn bộ source V3.
-2. Chờ Cloudflare build xanh.
-3. D1 `sfec-app-db`: chỉ chạy `migrations/0003_sfec_ecosystem.sql` đúng 1 lần.
-4. Không chạy lại 0001/0002 trên database đang có.
-5. Kiểm tra Trang chủ, Lớp học, Tham gia SFEC, đăng nhập và dashboard.
+SFEC tập trung vào lớp học, chương trình, workshop và hoạt động giáo dục được triển khai theo định hướng/phê duyệt của SFN. Các hoạt động quản trị hệ thống, nhân sự, tuyển chọn và phân quyền thuộc cơ chế quản trị của SFN; SFEC không tự hình thành một bộ máy tổ chức độc lập.
 
-## Nghiệp vụ SFEC V3
-- Học viên: các lớp 9–12, A1–A2, B1–B2, Giao tiếp, Từ vựng.
-- Thành viên: 16+.
-- TNV Dạy học: 18+.
-- Core Ban Nội dung: 18+.
-- Core Ban Truyền thông: 18+.
-- Cố vấn SFEC.
+## Bộ mã nguồn
 
-Không có TNV chung, form đơn vị trực thuộc, form dự án hay form hợp tác trong luồng tuyển/đăng ký SFEC.
+- Backend: Cloudflare Workers (`src/`).
+- Cơ sở dữ liệu: Cloudflare D1; giữ nguyên schema và lịch sử trong các migration `0001`–`0009`.
+- Lưu trữ tệp: Cloudflare R2.
+- Giao diện web: `public/`.
+- Bản cập nhật theo hướng trải nghiệm số và quản trị SFN: `migrations/0010_sfec_experience_governance.sql`.
+- Báo cáo phạm vi và giới hạn kiểm thử: `SFEC_IMMERSIVE_REBUILD_REPORT.md`.
 
-Security: FIRST_LOGIN_SUPER_ADMIN.txt is intentionally excluded from V3. Existing Super Admin credentials are not changed by migration 0003.
+## Trước khi triển khai
+
+1. Sao lưu D1 và R2 theo quy trình vận hành hiện có.
+2. Xác minh đúng Cloudflare account, D1 database và migration history của môi trường đích.
+3. Đọc kỹ `migrations/0010_sfec_experience_governance.sql`; đây là migration mới theo hướng tiến, không xóa lịch sử hồ sơ.
+4. Chạy kiểm tra mã nguồn bằng `npm run validate`.
+5. Chỉ áp dụng migration và deploy sau khi được người quản trị hệ thống cho phép, có kế hoạch rollback và đã xác minh bản sao lưu.
+
+**Không chạy lại các migration lịch sử `0001`–`0009` trên database đang có.** Không chạy `0010` trên production một cách tự động. Gói này chưa được deploy và migration chưa được áp dụng lên D1 production.
+
+## Luồng công khai
+
+Các biểu mẫu công khai chỉ dành cho hoạt động giáo dục được phép. Biểu mẫu cũ ngoài phạm vi được tắt bằng migration thay vì xóa; bản ghi gửi trước đây được giữ nguyên. Dữ liệu nhân sự/tuyển chọn lịch sử không bị xóa, và các API nghiệp vụ liên quan có kiểm tra vai trò quản trị cấp SFN.
+
+## GCN và PDF
+
+- GCN đã phát hành giữ nguyên mã cũ.
+- GCN mới dùng định dạng `XXXXXXXX/GCN-SFEC/XX26` trong năm 2026.
+- Tra cứu hỗ trợ định dạng cũ và mới; QR có thể quét bằng camera trên trình duyệt tương thích hoặc tải ảnh QR lên.
+- Bản in được bố cục theo chiều dọc. Người dùng có thể chọn “Lưu dưới dạng PDF” trong hộp thoại in của trình duyệt.
+
+## Biến môi trường và bí mật
+
+Không commit `.env`, API token, OAuth secret, Turnstile secret, khóa riêng tư hoặc mật khẩu. Quản lý bí mật qua Cloudflare secrets và quy trình vận hành riêng. Địa chỉ đăng nhập Super Admin gốc được giữ như định danh nội bộ hiện có; không dùng nó làm email liên hệ công khai.
+
+## Tài liệu cũ trong repository
+Một số tệp như `FINAL_AUDIT.md`, `UPGRADE_SFEC_*.md`, `V6_*` và các ghi chú phiên bản cũ được giữ lại làm lịch sử tham khảo. Nếu nội dung cũ mâu thuẫn với cấu hình hiện tại, hãy ưu tiên README này và `SFEC_IMMERSIVE_REBUILD_REPORT.md`; không coi các tài liệu snapshot cũ là trạng thái production hiện tại.

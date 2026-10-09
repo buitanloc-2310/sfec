@@ -1,23 +1,24 @@
-# EMAIL SFEC
+# Cấu hình email SFEC
 
-## Đích nhận form
+## Địa chỉ nhận thông báo nội bộ
 
-Mặc định tất cả form gửi thông báo nội bộ về:
+Địa chỉ liên hệ công khai/mặc định sau khi áp dụng cấu hình SFEC:
 
-`sfec.englishclub@gmail.com`
+`sfec@skyfirst.io.vn`
 
-Đích này được lưu cả trong form và setting; Super Admin có thể chỉnh trong Admin nếu thật sự cần.
+Đây là giá trị mặc định được thiết lập trong migration 0010 và dùng làm mặc định cho biểu mẫu mới trong mã nguồn. Trước khi migration được áp dụng, cấu hình trong database đang chạy có thể khác.
 
 ## Nội dung email hồ sơ
 
-- tên biểu mẫu;
-- mã hồ sơ;
-- người gửi/email;
-- toàn bộ câu hỏi + câu trả lời;
-- file được thể hiện dưới dạng link bảo mật trong hệ thống.
+- Tên biểu mẫu và mã hồ sơ.
+- Thông tin liên hệ do người gửi cung cấp.
+- Câu hỏi/câu trả lời và link tệp theo kiểm tra quyền hiện có.
+- Email xác nhận cho người nộp khi có địa chỉ hợp lệ.
 
-Người nộp nhận email xác nhận mã hồ sơ. Khi Admin đổi trạng thái, hệ thống có template `status_update`.
+Các biểu mẫu ngoài phạm vi SFEC đang bị vô hiệu hóa ở API; lịch sử hồ sơ vẫn được giữ.
 
-## Provider
+## Provider và bí mật
 
-Source ưu tiên `RESEND_API_KEY` nếu có. Nếu không có nhưng Worker có `EMAIL` binding, source dùng Cloudflare Email Service. Nếu chưa có provider, hồ sơ vẫn lưu D1 và `email_logs` ghi pending/failed.
+Source hỗ trợ `RESEND_API_KEY` hoặc binding `EMAIL` của Cloudflare nếu đã cấu hình. Đặt secrets qua công cụ quản trị Cloudflare; không lưu token/mật khẩu trong repository hay ZIP bàn giao. Nếu chưa cấu hình provider, việc lưu hồ sơ và trạng thái gửi email cần được kiểm tra riêng trên môi trường thực tế.
+
+Định danh đăng nhập Super Admin gốc `sfec.englishclub@gmail.com` được giữ cho mục đích tương thích tài khoản hiện có; đây không phải địa chỉ liên hệ công khai sau tái định vị thương hiệu.

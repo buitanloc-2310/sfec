@@ -6,6 +6,9 @@ import {
 import {getAuthUser} from "./auth.js";
 import {sendTemplatedEmail, answersToEmail} from "./email.js";
 
+const PUBLIC_EDUCATION_FORMS = new Set(["student", "class", "event"]);
+function isPublicEducationForm(id){ return PUBLIC_EDUCATION_FORMS.has(String(id||"")); }
+
 async function getSetting(env,key,fallback=null){
   const r=await env.DB.prepare("SELECT value_json FROM settings WHERE key=?").bind(key).first();
   if(!r) return fallback;
@@ -74,17 +77,17 @@ export async function publicRoute(request,env,url){
 
   if(p==="/api/config"&&request.method==="GET"){
     const mods=await env.DB.prepare("SELECT key,name,category,enabled,sort_order,description FROM modules ORDER BY sort_order").all();
-    const forms=await env.DB.prepare("SELECT id,name,prefix,description,audience,min_age,version FROM forms WHERE enabled=1 ORDER BY rowid").all();
+    const forms=await env.DB.prepare("SELECT id,name,prefix,description,audience,min_age,version FROM forms WHERE enabled=1 AND id IN ('student','class','event') ORDER BY rowid").all();
     return json({
       app_name:await getSetting(env,"app_name","Sky First Education Club"),
-      app_short_name:await getSetting(env,"app_short_name","Sky First Education Club"),
+      app_short_name:await getSetting(env,"app_short_name","SFEC"),
       app_url:env.APP_URL||await getSetting(env,"app_url",""),
-      website:await getSetting(env,"website","https://www.skyfirst.io.vn"),
+      website:await getSetting(env,"website","https://sfec.skyfirst.io.vn"),
       hotline:await getSetting(env,"hotline","0924 910 210"),
       receiver_email:await getSetting(env,"receiver_email","sfec@skyfirst.io.vn"),
       slogan:await getSetting(env,"brand_slogan",""),
-      hero_title:await getSetting(env,"hero_title","Kết nối giáo dục. Phát triển cộng đồng."),
-      hero_text:await getSetting(env,"hero_text","Không gian giáo dục đa lĩnh vực của SFEC, kết nối người học với chương trình, hoạt động, hồ sơ và thông tin xác minh giấy chứng nhận."),
+      hero_title:await getSetting(env,"hero_title","Học tập. Khám phá. Phát triển."),
+      hero_text:await getSetting(env,"hero_text","Một không gian giáo dục số kết nối người học với lớp học, chương trình và hoạt động phát triển năng lực được triển khai theo định hướng của Sky First Network."),
       hero_cover_url:await getSetting(env,"hero_cover_url","/assets/sfec-cover.png"),
       maintenance_mode:await getSetting(env,"maintenance_mode",false),
       modules:mods.results||[],
@@ -123,6 +126,7 @@ export async function publicRoute(request,env,url){
   const formMatch=p.match(/^\/api\/forms\/([^/]+)$/);
   if(formMatch&&request.method==="GET"){
     const idForm=decodeURIComponent(formMatch[1]);
+    if(!isPublicEducationForm(idForm)) return json({error:"FORM_OUT_OF_SCOPE",message:"Biểu mẫu này không còn được tiếp nhận trên SFEC. Vui lòng liên hệ Sky First Network."},404);
     const row=await env.DB.prepare("SELECT id,name,prefix,description,audience,min_age,version,config_json FROM forms WHERE id=? AND enabled=1").bind(idForm).first();
     if(!row) return json({error:"FORM_NOT_FOUND"},404);
     const config=JSON.parse(row.config_json);
@@ -137,6 +141,7 @@ export async function publicRoute(request,env,url){
   const submitMatch=p.match(/^\/api\/forms\/([^/]+)\/submit$/);
   if(submitMatch&&request.method==="POST"){
     const idForm=decodeURIComponent(submitMatch[1]);
+    if(!isPublicEducationForm(idForm)) return json({error:"FORM_OUT_OF_SCOPE",message:"Biểu mẫu này không còn được tiếp nhận trên SFEC. Vui lòng liên hệ Sky First Network."},404);
     const ip=await ipHash(request);
     const rl=await rateLimit(env,`submit:${idForm}:${ip}`,8,300);
     if(!rl.ok) return json({error:"RATE_LIMIT"},429);
@@ -250,9 +255,13 @@ export async function publicRoute(request,env,url){
   }
 
   if(p==="/api/lookup/certificate"&&request.method==="GET"){
-    const code=String(url.searchParams.get("code")||"").trim();
-    const row=await env.DB.prepare("SELECT code,cert_type,full_name,content,status,issued_at,metadata_json FROM certificates WHERE code=? AND status IN ('issued','revoked','reissued')").bind(code).first();
-    return row?json({item:row},200,{'Access-Control-Allow-Origin':'*','Vary':'Origin','Cache-Control':'no-store'}):json({error:"NOT_FOUND"},404,{'Access-Control-Allow-Origin':'*','Vary':'Origin','Cache-Control':'no-store'});
+    const code=String(url.searchParams.get("code")||"").trim().toUpperCase();
+    const row=await env.DB.prepare("SELECT code,cert_type,full_name,content,status,issued_at,metadata_json,email FROM certificates WHERE code=? AND status IN ('issued','revoked','reissued')").bind(code).first();
+    if(!row) return json({error:"NOT_FOUND"},404,{'Access-Control-Allow-Origin':'*','Vary':'Origin','Cache-Control':'no-store'});
+    const portrait=row.email?await env.DB.prepare("SELECT f.id FROM files f JOIN submissions s ON s.code=f.submission_code WHERE lower(s.email)=lower(?) AND f.field_key='profile_photo' ORDER BY f.created_at DESC LIMIT 1").bind(row.email).first():null;
+    const {email,...publicRow}=row;
+    if(portrait) publicRow.photo_url=`/api/public/certificate-photo?code=${encodeURIComponent(code)}`;
+    return json({item:publicRow},200,{'Access-Control-Allow-Origin':'*','Vary':'Origin','Cache-Control':'no-store'});
   }
 
   return null;
