@@ -218,3 +218,43 @@ body{background:radial-gradient(circle at 5% 12%,rgba(64,158,255,.085),transpare
 
 /* SFEC CMS reliability controls */
 .cms-fullscreen-mode{position:fixed!important;inset:10px!important;z-index:120!important;overflow:auto!important;background:var(--bg);padding:16px!important;border-radius:20px;box-shadow:0 25px 90px #00152c55}.cms-fullscreen-mode .cms-editor-main{min-width:0}.cms-fullscreen-mode .cms-preview-side{max-height:calc(100vh - 150px);overflow:auto}.cms-fullscreen-mode .cms-code{min-height:45vh}.cms-editor-shell .cms-code{tab-size:2}.nav-drop>button{min-height:42px}.nav-drop>button:focus-visible,.nav a:focus-visible,.drop-menu a:focus-visible{outline:3px solid #39baf3;outline-offset:2px}.drop-menu{min-width:255px}.admin-entry{letter-spacing:.1px}
+
+/* HOTFIX: keep footer section headings readable on the dark footer background */
+.footer-rich .footer-main>div>b,.footer-rich .footer-main>div>strong,.footer-rich .footer-main h2,.footer-rich .footer-main h3,.footer-rich .footer-main h4{color:#f3f8ff!important;opacity:1!important;text-shadow:0 1px 2px rgba(0,0,0,.22)}
+.footer-rich .footer-main>div{min-width:0}
+.footer-rich .footer-main a,.footer-rich .footer-main p{overflow-wrap:anywhere}
+.footer-rich .footer-main a{color:#b9d7f5!important}
+.footer-rich .footer-main a:hover,.footer-rich .footer-main a:focus-visible{color:#fff!important}
+.footer-rich .footer-bottom,.footer-rich .footer-bottom a{color:#b2c8e1!important}
+@media(max-width:900px){.footer-rich .footer-main{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px){.footer-rich .footer-main{grid-template-columns:minmax(0,1fr)}.footer-rich .footer-bottom{align-items:flex-start;flex-direction:column;gap:12px}}
+
+/* SFEC immersive footer redesign — high contrast, network columns and QR */
+.footer-rich{position:relative;isolation:isolate;margin-top:0;padding:34px max(26px,calc((100vw - 1740px)/2)) 22px;background:radial-gradient(ellipse at 12% 115%,rgba(0,151,255,.30),transparent 38%),radial-gradient(ellipse at 100% 90%,rgba(0,204,255,.22),transparent 34%),linear-gradient(115deg,#03152e 0%,#041f42 55%,#03152d 100%);color:#e8f4ff;border-top:1px solid #08c8f5;overflow:hidden}
+.footer-rich:before{content:"";position:absolute;z-index:-1;left:-5%;right:-5%;bottom:52px;height:105px;background:linear-gradient(172deg,transparent 38%,rgba(0,145,255,.23) 39%,transparent 41%),linear-gradient(8deg,transparent 49%,rgba(0,203,255,.18) 50%,transparent 52%);pointer-events:none}
+.footer-rich .footer-main{position:relative;max-width:1740px;padding:12px 0 30px;grid-template-columns:minmax(250px,1.25fr) minmax(170px,.85fr) minmax(245px,1fr) minmax(300px,1.35fr) 190px;gap:28px;align-items:start}
+.footer-rich .footer-main>div{min-width:0;gap:12px}
+.footer-rich .footer-main>div>b{display:flex;align-items:center;gap:12px;color:#15ddff!important;font-size:18px;font-weight:850;letter-spacing:.1px;margin:0 0 3px;padding-bottom:13px;border-bottom:1px solid rgba(70,192,255,.24);width:100%;text-shadow:0 0 15px rgba(0,201,255,.15)}
+.footer-rich .footer-heading-icon{font-size:24px;line-height:1}
+.footer-rich .footer-brand{display:grid!important;grid-template-columns:1fr;gap:13px!important}
+.footer-rich .footer-brand>img{width:min(100%,290px);height:145px;object-fit:contain;object-position:left center;background:transparent;border-radius:0;padding:0}
+.footer-rich .footer-brand>div{display:flex;flex-direction:column;gap:12px;min-width:0}
+.footer-rich .footer-brand>div>b{font-size:23px;line-height:1.25;color:#f7fbff;letter-spacing:-.4px}
+.footer-rich .footer-main p{margin:0;color:#c4d6ed;font-size:15px;line-height:1.65;overflow-wrap:anywhere}
+.footer-rich .footer-main a{color:#d5e7fb!important;font-size:15px;line-height:1.55;text-decoration:none;overflow-wrap:anywhere;transition:color .18s ease,border-color .18s ease,transform .18s ease}
+.footer-rich .footer-main a:after{content:none!important}
+.footer-rich .footer-main a:hover,.footer-rich .footer-main a:focus-visible{color:#20dcff!important;text-decoration:underline;text-underline-offset:4px}
+.footer-rich .footer-parent-name{color:#f4f8ff;font-size:16px;line-height:1.55}
+.footer-rich .footer-network-cta{display:block;margin-top:2px;padding:13px 17px;border-radius:16px;text-align:center;font-weight:800;background:linear-gradient(110deg,#08b9ff,#0754cf);border:1px solid #159eff;color:white!important;box-shadow:0 10px 26px rgba(0,120,255,.2)}
+.footer-rich .footer-socials{display:flex;gap:12px;margin-top:2px;flex-wrap:wrap}
+.footer-rich .footer-socials a{display:grid;place-items:center;width:48px;height:48px;border:2px solid #05d6ff;border-radius:50%;color:#fff!important;font-size:17px;font-weight:900;box-shadow:0 0 14px rgba(0,204,255,.1)}
+.footer-rich .footer-qr{display:flex;flex-direction:column;align-items:center;gap:5px;padding:15px 12px;border:1px solid #04cfff;border-radius:18px;background:rgba(0,36,76,.65);box-shadow:0 0 24px rgba(0,191,255,.1);text-align:center}
+.footer-rich .footer-qr img{display:block;width:150px;height:150px;object-fit:contain;background:white;padding:7px;border-radius:10px}
+.footer-rich .footer-qr b,.footer-rich .footer-qr span{color:#10e0ff;font-size:15px;font-weight:850;line-height:1.35}
+.footer-rich .footer-bottom{max-width:1740px;margin:0 auto;padding:18px 0 0;border-top:1px solid rgba(119,197,255,.22);color:#b9cce3;font-size:13px;align-items:center}
+.footer-rich .footer-bottom a{color:#d4e7fb!important}
+.footer-rich .footer-legal{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.footer-rich .footer-legal i{height:20px;border-left:1px solid rgba(83,183,255,.35)}
+.footer-rich .footer-backtop{display:grid;place-items:center;width:48px;height:48px;border:2px solid #04d9ff;border-radius:50%;font-size:26px;font-weight:600;color:#0cdbff!important;text-decoration:none}
+@media(max-width:1300px){.footer-rich .footer-main{grid-template-columns:minmax(240px,1.2fr) minmax(160px,.8fr) minmax(220px,1fr);gap:25px}.footer-rich .footer-contact{grid-column:2/4}.footer-rich .footer-qr{grid-column:1;grid-row:2;max-width:190px}}
+@media(max-width:760px){.footer-rich{padding:28px 20px 18px}.footer-rich .footer-main{grid-template-columns:minmax(0,1fr);gap:27px;padding-bottom:25px}.footer-rich .footer-contact,.footer-rich .footer-qr{grid-column:auto;grid-row:auto}.footer-rich .footer-brand>img{width:240px;height:120px}.footer-rich .footer-bottom{align-items:flex-start;flex-direction:column;gap:15px;padding-top:17px}.footer-rich .footer-legal{gap:10px}.footer-rich .footer-legal i{height:16px}.footer-rich .footer-qr{width:190px}.footer-rich .footer-main p,.footer-rich .footer-main a{font-size:14px}}

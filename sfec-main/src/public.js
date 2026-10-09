@@ -298,6 +298,24 @@ export async function publicRoute(request,env,url){
         return json({item:result,source:"authoritative_registry"},200,headers);
       }catch{hadNetworkFailure=true;}
     }
+    // Backward compatibility: old SFEC records remain searchable by their original code/ID.
+    // A local historical match is displayed as UNVERIFIED; it is never promoted to an authoritative result.
+    try{
+      const legacy=await env.DB.prepare("SELECT id,code,cert_type,full_name,content,status,issued_at,created_at,metadata_json FROM certificates WHERE code=? OR id=? LIMIT 1").bind(code,code).first();
+      if(legacy){
+        let prior={};try{prior=JSON.parse(legacy.metadata_json||"{}")}catch{}
+        const item={
+          code:legacy.code||legacy.id,
+          cert_type:legacy.cert_type||"",
+          full_name:legacy.full_name||"",
+          content:legacy.content||"",
+          status:"unverified_legacy",
+          issued_at:legacy.issued_at||null,
+          metadata_json:JSON.stringify({issuer_name:prior.issuer_name||prior.issuer||"",owner_name:prior.owner_name||"Mạng lưới Giáo dục & Phát triển Cộng đồng Sky First (Sky First Network – SFN)",source:"legacy_local_record",verification_note:"Hồ sơ cũ được tìm thấy trong dữ liệu SFEC nhưng chưa xác minh được trực tiếp với nguồn phát hành có thẩm quyền."})
+        };
+        return json({item,source:"legacy_local_record",verified:false,message:"Đã tìm thấy hồ sơ cũ; chưa xác minh được từ nguồn phát hành có thẩm quyền."},200,headers);
+      }
+    }catch{/* Preserve the authoritative-source error below if the legacy schema is unavailable. */}
     return hadNetworkFailure
       ? json({error:"VERIFICATION_UNAVAILABLE",message:"Chưa xác minh được từ nguồn phát hành có thẩm quyền."},503,headers)
       : json({error:"NOT_FOUND"},404,headers);
