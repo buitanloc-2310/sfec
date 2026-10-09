@@ -6,7 +6,7 @@ const root=path.resolve(path.dirname(new URL(import.meta.url).pathname),'..');
 const required=[
   'src/index.js','src/auth.js','src/public.js','src/admin.js','src/me.js','src/utils.js','src/email.js','src/permissions.js',
   'public/index.html','public/app.js','public/styles.css','public/sw.js','public/manifest.webmanifest',
-  'migrations/0001_schema.sql','migrations/0002_seed.sql','migrations/0004_ui_portal_polish.sql','wrangler.jsonc'
+  'migrations/0001_schema.sql','migrations/0002_seed.sql','migrations/0004_ui_portal_polish.sql','migrations/0011_email_automation_center.sql','wrangler.jsonc'
 ];
 let ok=true;
 for(const f of required){if(!fs.existsSync(path.join(root,f))){console.error('MISSING',f);ok=false;}}

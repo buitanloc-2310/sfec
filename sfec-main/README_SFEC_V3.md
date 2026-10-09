@@ -1,20 +1,7 @@
-# SFEC V3 — Independent English Club Portal
+# Ghi chú phiên bản lịch sử — đã được thay thế
 
-This build keeps the Cloudflare Workers/D1/R2 backend architecture but rebuilds the public product around SFEC's own English Club ecosystem.
+Tệp này thuộc tài liệu của phiên bản SFEC cũ. Các mô tả về “independent English Club”, bộ máy nhân sự riêng hoặc các biểu mẫu tuyển chọn không còn là yêu cầu vận hành hiện hành.
 
-## Public journeys
-- Học viên — all SFEC classes, no IELTS.
-- Thành viên SFEC — 16+.
-- TNV Dạy học — 18+.
-- Core Ban Nội dung — 18+.
-- Core Ban Truyền thông — 18+.
-- Cố vấn SFEC.
+**Tài liệu chuẩn cho mã nguồn hiện tại:** `README_FIRST.md`, `README_SFEC.md` và `SFEC_IMMERSIVE_REBUILD_REPORT.md`.
 
-## SFEC class catalog
-Lớp 9, Lớp 10, Lớp 11, Lớp 12, A1–A2, B1–B2, Tiếng Anh Giao tiếp, Từ vựng.
-
-## Existing deployed database
-Run `migrations/0003_sfec_ecosystem.sql` exactly once after deploying V3. Do not rerun 0001/0002 on an existing database.
-
-## Domain
-`https://sfec.skyfirst.io.vn`
+Yêu cầu hiện hành: SFEC — Sky First Education Club là mô hình giáo dục trực thuộc Sky First Network; website giữ domain `https://sfec.skyfirst.io.vn`; không xóa dữ liệu/GCN cũ; không triển khai production khi chưa backup, review migration và có phê duyệt.

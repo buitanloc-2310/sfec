@@ -18,7 +18,7 @@ function secure(resp){
   h.set("x-content-type-options","nosniff");
   h.set("x-frame-options","DENY");
   h.set("referrer-policy","strict-origin-when-cross-origin");
-  h.set("permissions-policy","camera=(), microphone=(), geolocation=(), payment=(), usb=()");
+  h.set("permissions-policy","camera=(self), microphone=(), geolocation=(), payment=(), usb=()");
   h.set("strict-transport-security","max-age=31536000; includeSubDomains");
   h.set("content-security-policy",[
     "default-src 'self'",
@@ -88,7 +88,7 @@ async function handle(request,env,ctx){
   }
 
   if(url.pathname==="/api/health") return json({
-    ok:true,app:"The Sky First English Club",production:true,time:new Date().toISOString(),
+    ok:true,app:"Sky First Education Club",production:true,time:new Date().toISOString(),
     database:!!env.DB,storage:!!env.FILES
   });
 
