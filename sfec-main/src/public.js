@@ -6,9 +6,6 @@ import {
 import {getAuthUser} from "./auth.js";
 import {sendTemplatedEmail, answersToEmail} from "./email.js";
 
-const PUBLIC_EDUCATION_FORMS = new Set(["student", "class", "event"]);
-function isPublicEducationForm(id){ return PUBLIC_EDUCATION_FORMS.has(String(id||"")); }
-
 async function getSetting(env,key,fallback=null){
   const r=await env.DB.prepare("SELECT value_json FROM settings WHERE key=?").bind(key).first();
   if(!r) return fallback;
@@ -77,17 +74,17 @@ export async function publicRoute(request,env,url){
 
   if(p==="/api/config"&&request.method==="GET"){
     const mods=await env.DB.prepare("SELECT key,name,category,enabled,sort_order,description FROM modules ORDER BY sort_order").all();
-    const forms=await env.DB.prepare("SELECT id,name,prefix,description,audience,min_age,version FROM forms WHERE enabled=1 AND id IN ('student','class','event') ORDER BY rowid").all();
+    const forms=await env.DB.prepare("SELECT id,name,prefix,description,audience,min_age,version FROM forms WHERE enabled=1 ORDER BY rowid").all();
     return json({
-      app_name:await getSetting(env,"app_name","Sky First Education Club"),
-      app_short_name:await getSetting(env,"app_short_name","SFEC"),
+      app_name:await getSetting(env,"app_name","The Sky First English Club"),
+      app_short_name:await getSetting(env,"app_short_name","The Sky First English Club"),
       app_url:env.APP_URL||await getSetting(env,"app_url",""),
-      website:await getSetting(env,"website","https://sfec.skyfirst.io.vn"),
+      website:await getSetting(env,"website","https://www.skyfirst.io.vn"),
       hotline:await getSetting(env,"hotline","0924 910 210"),
       receiver_email:await getSetting(env,"receiver_email","sfec@skyfirst.io.vn"),
       slogan:await getSetting(env,"brand_slogan",""),
-      hero_title:await getSetting(env,"hero_title","Học tập. Khám phá. Phát triển."),
-      hero_text:await getSetting(env,"hero_text","Một không gian giáo dục số kết nối người học với lớp học, chương trình và hoạt động phát triển năng lực được triển khai theo định hướng của Sky First Network."),
+      hero_title:await getSetting(env,"hero_title","Kết nối giáo dục. Phát triển cộng đồng."),
+      hero_text:await getSetting(env,"hero_text","Một cổng chung cho Thành viên, Core Team, Tình nguyện viên, Học sinh/Học viên, lớp học, hoạt động, hồ sơ, GCN/GXN và quản trị The Sky First English Club."),
       hero_cover_url:await getSetting(env,"hero_cover_url","/assets/sfec-cover.png"),
       maintenance_mode:await getSetting(env,"maintenance_mode",false),
       modules:mods.results||[],
@@ -126,7 +123,6 @@ export async function publicRoute(request,env,url){
   const formMatch=p.match(/^\/api\/forms\/([^/]+)$/);
   if(formMatch&&request.method==="GET"){
     const idForm=decodeURIComponent(formMatch[1]);
-    if(!isPublicEducationForm(idForm)) return json({error:"FORM_OUT_OF_SCOPE",message:"Biểu mẫu này không còn được tiếp nhận trên SFEC. Vui lòng liên hệ Sky First Network."},404);
     const row=await env.DB.prepare("SELECT id,name,prefix,description,audience,min_age,version,config_json FROM forms WHERE id=? AND enabled=1").bind(idForm).first();
     if(!row) return json({error:"FORM_NOT_FOUND"},404);
     const config=JSON.parse(row.config_json);
@@ -141,7 +137,6 @@ export async function publicRoute(request,env,url){
   const submitMatch=p.match(/^\/api\/forms\/([^/]+)\/submit$/);
   if(submitMatch&&request.method==="POST"){
     const idForm=decodeURIComponent(submitMatch[1]);
-    if(!isPublicEducationForm(idForm)) return json({error:"FORM_OUT_OF_SCOPE",message:"Biểu mẫu này không còn được tiếp nhận trên SFEC. Vui lòng liên hệ Sky First Network."},404);
     const ip=await ipHash(request);
     const rl=await rateLimit(env,`submit:${idForm}:${ip}`,8,300);
     if(!rl.ok) return json({error:"RATE_LIMIT"},429);
@@ -193,6 +188,10 @@ export async function publicRoute(request,env,url){
             fileIds[f.key]=fid;
           }catch(err){
             await env.DB.prepare("DELETE FROM submissions WHERE code=?").bind(code).run();
+            // Notify operations about a genuine server-side file persistence failure.
+            // Do not include applicant answers or file contents in the alert.
+            const alertRecipient=await getSetting(env,"email_internal_alert_recipient",await getSetting(env,"receiver_email","sfec@skyfirst.io.vn"));
+            if(alertRecipient) await sendTemplatedEmail(env,"system_alert",alertRecipient,{alert_title:"Không lưu được tệp hồ sơ",reference:code,occurred_at:new Date().toLocaleString("vi-VN",{timeZone:"Asia/Ho_Chi_Minh"}),message:String(err.message||err).slice(0,300)});
             return json({error:String(err.message||err)},400);
           }
         }
@@ -207,19 +206,21 @@ export async function publicRoute(request,env,url){
     if(idForm==="support") await createSupportTicket(env,submission);
     if(idForm==="class"){
       const course=String(answers.course||"");
-      const cls=await env.DB.prepare("SELECT id FROM classes WHERE title=? OR level=? ORDER BY created_at DESC LIMIT 1").bind(course,course).first();
+      const cls=await env.DB.prepare("SELECT id,title FROM classes WHERE title=? OR level=? ORDER BY created_at DESC LIMIT 1").bind(course,course).first();
       if(cls){
         await env.DB.prepare("INSERT INTO class_enrollments(class_id,user_id,submission_code,full_name,email,status) VALUES(?,?,?,?,?,'Chờ duyệt')")
           .bind(cls.id,user?.id||null,code,fullName,email).run();
+        if(email) await sendTemplatedEmail(env,"class_enrollment",email,{full_name:fullName,class_title:cls.title||course,status:"Chờ duyệt",code});
       }
     }
     if(idForm==="event"){
       const eventName=String(answers.event_name||"");
-      const ev=await env.DB.prepare("SELECT id FROM events WHERE title=? ORDER BY created_at DESC LIMIT 1").bind(eventName).first();
+      const ev=await env.DB.prepare("SELECT id,title,start_at FROM events WHERE title=? ORDER BY created_at DESC LIMIT 1").bind(eventName).first();
       if(ev){
         const checkin=`CHK-${randomToken(8)}`;
         await env.DB.prepare("INSERT INTO event_registrations(event_id,user_id,full_name,email,status,checkin_code) VALUES(?,?,?,?, 'Đã đăng ký', ?)")
           .bind(ev.id,user?.id||null,fullName,email,checkin).run();
+        if(email) await sendTemplatedEmail(env,"event_registration",email,{full_name:fullName,event_title:ev.title||eventName,event_time:ev.start_at||"Sẽ cập nhật sau",status:"Đã đăng ký",code});
       }
     }
 
@@ -255,13 +256,9 @@ export async function publicRoute(request,env,url){
   }
 
   if(p==="/api/lookup/certificate"&&request.method==="GET"){
-    const code=String(url.searchParams.get("code")||"").trim().toUpperCase();
-    const row=await env.DB.prepare("SELECT code,cert_type,full_name,content,status,issued_at,metadata_json,email FROM certificates WHERE code=? AND status IN ('issued','revoked','reissued')").bind(code).first();
-    if(!row) return json({error:"NOT_FOUND"},404,{'Access-Control-Allow-Origin':'*','Vary':'Origin','Cache-Control':'no-store'});
-    const portrait=row.email?await env.DB.prepare("SELECT f.id FROM files f JOIN submissions s ON s.code=f.submission_code WHERE lower(s.email)=lower(?) AND f.field_key='profile_photo' ORDER BY f.created_at DESC LIMIT 1").bind(row.email).first():null;
-    const {email,...publicRow}=row;
-    if(portrait) publicRow.photo_url=`/api/public/certificate-photo?code=${encodeURIComponent(code)}`;
-    return json({item:publicRow},200,{'Access-Control-Allow-Origin':'*','Vary':'Origin','Cache-Control':'no-store'});
+    const code=String(url.searchParams.get("code")||"").trim();
+    const row=await env.DB.prepare("SELECT code,cert_type,full_name,content,status,issued_at,metadata_json FROM certificates WHERE code=? AND status IN ('issued','revoked','reissued')").bind(code).first();
+    return row?json({item:row},200,{'Access-Control-Allow-Origin':'*','Vary':'Origin','Cache-Control':'no-store'}):json({error:"NOT_FOUND"},404,{'Access-Control-Allow-Origin':'*','Vary':'Origin','Cache-Control':'no-store'});
   }
 
   return null;

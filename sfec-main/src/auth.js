@@ -280,7 +280,7 @@ export async function authRoute(request,env,url){
     const user=await getAuthUser(request,env); const auth=requireAuth(user); if(auth) return auth;
     const bytes=new Uint8Array(20);crypto.getRandomValues(bytes);const secret=base32Encode(bytes);
     await env.DB.prepare("UPDATE users SET totp_secret=?,totp_enabled=0 WHERE id=?").bind(secret,user.id).run();
-    const issuer=encodeURIComponent("SFEC – Sky First Education Club"),label=encodeURIComponent(user.email);
+    const issuer=encodeURIComponent("The Sky First English Club"),label=encodeURIComponent(user.email);
     const uri=`otpauth://totp/${issuer}:${label}?secret=${secret}&issuer=${issuer}&digits=6&period=30`;
     return json({secret,otpauth_uri:uri});
   }

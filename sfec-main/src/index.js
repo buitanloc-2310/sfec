@@ -18,7 +18,7 @@ function secure(resp){
   h.set("x-content-type-options","nosniff");
   h.set("x-frame-options","DENY");
   h.set("referrer-policy","strict-origin-when-cross-origin");
-  h.set("permissions-policy","camera=(self), microphone=(), geolocation=(), payment=(), usb=()");
+  h.set("permissions-policy","camera=(), microphone=(), geolocation=(), payment=(), usb=()");
   h.set("strict-transport-security","max-age=31536000; includeSubDomains");
   h.set("content-security-policy",[
     "default-src 'self'",
@@ -50,24 +50,6 @@ async function serveFile(request,env,url){
   headers.set("content-type",meta.mime||obj.httpMetadata?.contentType||"application/octet-stream");
   headers.set("content-disposition",`inline; filename*=UTF-8''${encodeURIComponent(meta.filename)}`);
   headers.set("cache-control",meta.visibility==="public"?"public, max-age=3600":"private, no-store");
-  return new Response(obj.body,{headers});
-}
-
-async function serveCertificatePhoto(request,env,url){
-  if(url.pathname!=="/api/public/certificate-photo"||request.method!=="GET") return null;
-  const code=String(url.searchParams.get("code")||"").trim();
-  if(!code) return json({error:"CERTIFICATE_CODE_REQUIRED"},400);
-  const cert=await env.DB.prepare("SELECT email FROM certificates WHERE code=? AND status IN ('issued','revoked','reissued')").bind(code).first();
-  if(!cert?.email) return json({error:"CERTIFICATE_NOT_FOUND"},404);
-  const photo=await env.DB.prepare("SELECT f.r2_key,f.mime,f.filename FROM files f JOIN submissions s ON s.code=f.submission_code WHERE lower(s.email)=lower(?) AND f.field_key='profile_photo' ORDER BY f.created_at DESC LIMIT 1").bind(cert.email).first();
-  if(!photo) return json({error:"CERTIFICATE_PHOTO_NOT_FOUND"},404);
-  const obj=await env.FILES.get(photo.r2_key);
-  if(!obj) return json({error:"CERTIFICATE_PHOTO_NOT_FOUND"},404);
-  const headers=new Headers();
-  headers.set("content-type",photo.mime||obj.httpMetadata?.contentType||"image/jpeg");
-  headers.set("content-disposition","inline");
-  headers.set("cache-control","private, no-store");
-  headers.set("x-content-type-options","nosniff");
   return new Response(obj.body,{headers});
 }
 
@@ -106,11 +88,10 @@ async function handle(request,env,ctx){
   }
 
   if(url.pathname==="/api/health") return json({
-    ok:true,app:"Sky First Education Club",production:true,time:new Date().toISOString(),
+    ok:true,app:"The Sky First English Club",production:true,time:new Date().toISOString(),
     database:!!env.DB,storage:!!env.FILES
   });
 
-  const certificatePhoto=await serveCertificatePhoto(request,env,url); if(certificatePhoto) return certificatePhoto;
   const fileResp=await serveFile(request,env,url); if(fileResp) return fileResp;
   const auth=await authRoute(request,env,url); if(auth) return auth;
   const pub=await publicRoute(request,env,url); if(pub) return pub;

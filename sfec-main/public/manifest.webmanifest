@@ -1,10 +1,10 @@
 {
-  "name": "SFEC — Sky First Education Club",
+  "name": "The Sky First English Club",
   "short_name": "SFEC",
   "start_url": "/#home",
   "display": "standalone",
-  "background_color": "#061b38",
-  "theme_color": "#061b38",
+  "background_color": "#f5f8fc",
+  "theme_color": "#0e56b2",
   "icons": [
     {
       "src": "/assets/sfec-logo.png",
@@ -16,6 +16,5 @@
       "sizes": "512x512",
       "type": "image/png"
     }
-  ],
-  "description": "SFEC — mô hình giáo dục trực thuộc Sky First Network."
+  ]
 }

@@ -2,7 +2,7 @@
 import {json, readJson, uid, sha256, ipHash, escapeHtml, pbkdf2, newSalt} from "./utils.js";
 import {getAuthUser, requirePermission, createInvitedAccount} from "./auth.js";
 import {hasPermission, highestRoleLevel, roleLevel} from "./permissions.js";
-import {sendTemplatedEmail} from "./email.js";
+import {sendTemplatedEmail, sendEmail} from "./email.js";
 
 
 async function ensureSiteStudioSchema(env){
@@ -41,7 +41,7 @@ async function ensureSiteStudioSchema(env){
       ('about','Giới thiệu SFEC','GIỚI THIỆU SFEC','inherit'),
       ('journey','Hành trình phát triển','HÀNH TRÌNH PHÁT TRIỂN','inherit'),
       ('values','Định hướng & Giá trị','ĐỊNH HƯỚNG & GIÁ TRỊ','inherit'),
-      ('organization','Mô hình trực thuộc Sky First Network','MÔ HÌNH SFEC / SFN','inherit')`)
+      ('organization','Cơ cấu & Hệ sinh thái','CƠ CẤU & HỆ SINH THÁI','inherit')`)
   ]);
 }
 
@@ -57,19 +57,6 @@ async function nextCounter(env,key){
   await env.DB.prepare("INSERT OR IGNORE INTO counters(key,value) VALUES(?,0)").bind(key).run();
   const r=await env.DB.prepare("UPDATE counters SET value=value+1 WHERE key=? RETURNING value").bind(key).first();
   return Number(r?.value||1);
-}
-
-async function makeCertificateCode(env,kind,year){
-  const alphabet="ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  const yearSuffix=`XX${String(year).slice(-2)}`;
-  for(let attempt=0;attempt<12;attempt++){
-    const bytes=new Uint8Array(8);crypto.getRandomValues(bytes);
-    const id=Array.from(bytes,b=>alphabet[b%alphabet.length]).join("");
-    const code=`${id}/${kind}-SFEC/${yearSuffix}`;
-    const existing=await env.DB.prepare("SELECT id FROM certificates WHERE code=?").bind(code).first();
-    if(!existing)return code;
-  }
-  throw new Error("CERTIFICATE_CODE_GENERATION_FAILED");
 }
 function parseBodyJson(row,key){
   try{return JSON.parse(row?.[key]||"{}")}catch{return {}}
@@ -143,19 +130,6 @@ export async function adminRoute(request,env,url){
   if(!user) return json({error:"AUTH_REQUIRED"},401);
   const p=url.pathname;
 
-  // SFEC is an education model governed by SFN, not an independent HR/recruitment unit.
-  // Keep historical records, but require an SFN-level administrator for personnel operations.
-  const isNetworkAdministrator=(user.roles||[]).some(r=>["super_admin","system_admin"].includes(r.role_id));
-  const personnelGovernanceRoute =
-    p==="/api/admin/people" || p.startsWith("/api/admin/people/") ||
-    /^\/api\/admin\/submissions\/[^/]+\/convert-person$/.test(p) ||
-    p==="/api/admin/teaching-scopes" || p.startsWith("/api/admin/teaching-scopes/") ||
-    p==="/api/admin/interviews" || p.startsWith("/api/admin/interviews/") ||
-    p==="/api/admin/evaluations" || p.startsWith("/api/admin/evaluations/");
-  if(personnelGovernanceRoute && !isNetworkAdministrator){
-    return json({error:"SFN_GOVERNANCE_REQUIRED",message:"Nghiệp vụ nhân sự và tuyển chọn được quản trị bởi Sky First Network."},403);
-  }
-
   if(p==="/api/admin/site-pages"&&request.method==="GET"){
     if(!(hasPermission(user,"settings.manage")||hasPermission(user,"news.manage")))return json({error:"FORBIDDEN"},403);
     await ensureSiteStudioSchema(env);
@@ -217,16 +191,17 @@ export async function adminRoute(request,env,url){
 
   if(p==="/api/admin/dashboard"&&request.method==="GET"){
     const deny=requirePermission(user,"dashboard.view");if(deny)return deny;
-    const [subs,pending,certs,tickets,approvals,tasks]=await env.DB.batch([
+    const [subs,pending,people,certs,tickets,approvals,tasks]=await env.DB.batch([
       env.DB.prepare("SELECT COUNT(*) c FROM submissions"),
       env.DB.prepare("SELECT COUNT(*) c FROM submissions WHERE status IN ('Đã tiếp nhận','Cần bổ sung','Mời phỏng vấn','Đang đánh giá')"),
+      env.DB.prepare("SELECT COUNT(*) c FROM people WHERE status='Đang hoạt động'"),
       env.DB.prepare("SELECT COUNT(*) c FROM certificates WHERE status='issued'"),
       env.DB.prepare("SELECT COUNT(*) c FROM tickets WHERE status NOT IN ('Đã đóng','Đã giải quyết')"),
       env.DB.prepare("SELECT COUNT(*) c FROM approvals WHERE status='pending'"),
       env.DB.prepare("SELECT COUNT(*) c FROM tasks WHERE status NOT IN ('Hoàn thành','Đã hủy')")
     ]);
     return json({counts:{
-      submissions:subs.results?.[0]?.c||0,pending:pending.results?.[0]?.c||0,
+      submissions:subs.results?.[0]?.c||0,pending:pending.results?.[0]?.c||0,people:people.results?.[0]?.c||0,
       certificates:certs.results?.[0]?.c||0,tickets:tickets.results?.[0]?.c||0,approvals:approvals.results?.[0]?.c||0,tasks:tasks.results?.[0]?.c||0
     }});
   }
@@ -234,10 +209,7 @@ export async function adminRoute(request,env,url){
   if(p==="/api/admin/submissions"&&request.method==="GET"){
     const deny=requirePermission(user,"submission.view");if(deny)return deny;
     const status=url.searchParams.get("status"),form=url.searchParams.get("form"),q=url.searchParams.get("q");
-    const educationForms=["student","class","event"];
-    if(!isNetworkAdministrator&&form&&!educationForms.includes(form)) return json({error:"SFN_GOVERNANCE_REQUIRED",message:"Hồ sơ nhân sự/tuyển chọn được quản trị bởi Sky First Network."},403);
     let sql="SELECT code,form_id,full_name,email,status,assigned_to,score,internal_note,created_at,updated_at FROM submissions WHERE 1=1",vals=[];
-    if(!isNetworkAdministrator)sql+=" AND form_id IN ('student','class','event')";
     if(status){sql+=" AND status=?";vals.push(status)}
     if(form){sql+=" AND form_id=?";vals.push(form)}
     if(q){sql+=" AND (code LIKE ? OR full_name LIKE ? OR email LIKE ?)";vals.push(`%${q}%`,`%${q}%`,`%${q}%`)}
@@ -251,7 +223,6 @@ export async function adminRoute(request,env,url){
     const deny=requirePermission(user,"submission.view");if(deny)return deny;
     const row=await env.DB.prepare("SELECT * FROM submissions WHERE code=?").bind(decodeURIComponent(subMatch[1])).first();
     if(!row)return json({error:"NOT_FOUND"},404);
-    if(!isNetworkAdministrator&&!['student','class','event'].includes(row.form_id))return json({error:"SFN_GOVERNANCE_REQUIRED",message:"Hồ sơ nhân sự/tuyển chọn được quản trị bởi Sky First Network."},403);
     const files=await env.DB.prepare("SELECT id,field_key,filename,mime,size,created_at FROM files WHERE submission_code=?").bind(row.code).all();
     return json({item:{...row,answers:parseBodyJson(row,"answers_json"),terms:JSON.parse(row.terms_snapshot_json||"[]")},files:files.results||[]});
   }
@@ -261,7 +232,6 @@ export async function adminRoute(request,env,url){
     const code=decodeURIComponent(subMatch[1]),body=await readJson(request)||{};
     const current=await env.DB.prepare("SELECT * FROM submissions WHERE code=?").bind(code).first();
     if(!current)return json({error:"NOT_FOUND"},404);
-    if(!isNetworkAdministrator&&!['student','class','event'].includes(current.form_id))return json({error:"SFN_GOVERNANCE_REQUIRED",message:"Hồ sơ nhân sự/tuyển chọn được quản trị bởi Sky First Network."},403);
     const allowed=["status","assigned_to","score","internal_note"],sets=[],vals=[];
     for(const k of allowed) if(k in body){sets.push(`${k}=?`);vals.push(body[k])}
     if(sets.length){
@@ -290,6 +260,7 @@ export async function adminRoute(request,env,url){
     const pid=res.meta.last_row_id;
     await env.DB.prepare("INSERT INTO people_history(person_id,event_type,details_json,created_by) VALUES(?,'Tiếp nhận',?,?)")
       .bind(pid,JSON.stringify({source_submission_code:code}),user.id).run();
+    if(s.email) await sendTemplatedEmail(env,"person_added",s.email,{full_name:s.full_name||"bạn",reference:code});
     await audit(env,request,user,"Tiếp nhận thành hồ sơ nhân sự","person",String(pid),{source:code});
     return json({ok:true,person_id:pid});
   }
@@ -328,6 +299,8 @@ export async function adminRoute(request,env,url){
         .bind(targetId,role,scope,user.id,expires).run();
     }
     await audit(env,request,user,"Cập nhật quyền tài khoản","user",String(targetId),{roles});
+    const roleTarget=await env.DB.prepare("SELECT email,full_name FROM users WHERE id=?").bind(targetId).first();
+    if(roleTarget?.email) await sendTemplatedEmail(env,"role_updated",roleTarget.email,{full_name:roleTarget.full_name||roleTarget.email});
     return json({ok:true,roles:await listUserRoles(env,targetId)});
   }
 
@@ -354,7 +327,7 @@ export async function adminRoute(request,env,url){
   if(userStatusMatch&&request.method==="PATCH"){
     const deny=requirePermission(user,"user.manage");if(deny)return deny;
     const targetId=Number(userStatusMatch[1]),body=await readJson(request)||{},status=String(body.status||"active");
-    const target=await env.DB.prepare("SELECT email FROM users WHERE id=?").bind(targetId).first();
+    const target=await env.DB.prepare("SELECT email,full_name FROM users WHERE id=?").bind(targetId).first();
     if(!target)return json({error:"NOT_FOUND"},404);
     if(target.email.toLowerCase()==="sfec.englishclub@gmail.com"&&status!=="active") return json({error:"ROOT_SUPER_ADMIN_PROTECTED"},403);
     await env.DB.batch([
@@ -362,6 +335,7 @@ export async function adminRoute(request,env,url){
       env.DB.prepare("DELETE FROM sessions WHERE user_id=?").bind(targetId)
     ]);
     await audit(env,request,user,"Đổi trạng thái tài khoản","user",String(targetId),{status});
+    if(target?.email) await sendTemplatedEmail(env,"account_status",target.email,{full_name:target.full_name||target.email,status});
     return json({ok:true});
   }
 
@@ -378,8 +352,6 @@ export async function adminRoute(request,env,url){
   if(p==="/api/admin/modules"&&request.method==="PUT"){
     const deny=requirePermission(user,"module.manage");if(deny)return deny;
     const body=await readJson(request)||{},items=Array.isArray(body.items)?body.items:[];
-    const restrictedModules=new Set(["recruitment","people","volunteer_teaching"]);
-    if(!isNetworkAdministrator&&items.some(x=>restrictedModules.has(String(x.key||""))))return json({error:"SFN_GOVERNANCE_REQUIRED",message:"Các module nhân sự và tuyển chọn được quản trị bởi Sky First Network."},403);
     for(const x of items) await env.DB.prepare("UPDATE modules SET enabled=? WHERE key=?").bind(x.enabled?1:0,x.key).run();
     await audit(env,request,user,"Cập nhật trạng thái Modules","module","*",{count:items.length});
     return json({ok:true});
@@ -403,18 +375,15 @@ export async function adminRoute(request,env,url){
 
   if(p==="/api/admin/forms"&&request.method==="GET"){
     const deny=requirePermission(user,"form.view");if(deny)return deny;
-    const rs=await env.DB.prepare(isNetworkAdministrator
-      ? "SELECT id,name,prefix,description,audience,min_age,enabled,recipient_email,version,config_json,updated_at FROM forms ORDER BY rowid"
-      : "SELECT id,name,prefix,description,audience,min_age,enabled,recipient_email,version,config_json,updated_at FROM forms WHERE id IN ('student','class','event') ORDER BY rowid").all();
+    const rs=await env.DB.prepare("SELECT id,name,prefix,description,audience,min_age,enabled,recipient_email,version,config_json,updated_at FROM forms ORDER BY rowid").all();
     return json({items:(rs.results||[]).map(x=>({...x,config:JSON.parse(x.config_json),config_json:undefined}))});
   }
   if(p==="/api/admin/forms"&&request.method==="POST"){
     const deny=requirePermission(user,"form.manage");if(deny)return deny;
     const body=await readJson(request)||{},idForm=String(body.id||uid("form")).replace(/[^a-zA-Z0-9_-]/g,"");
     if(!body.name||!body.prefix||!body.config) return json({error:"INVALID_INPUT"},400);
-    if(!isNetworkAdministrator&&!['student','class','event'].includes(idForm))return json({error:"SFN_GOVERNANCE_REQUIRED",message:"Chỉ SFN được quản trị các biểu mẫu ngoài phạm vi đăng ký giáo dục."},403);
     await env.DB.prepare("INSERT INTO forms(id,name,prefix,description,audience,min_age,enabled,recipient_email,version,config_json,updated_by) VALUES(?,?,?,?,?,?,1,?,1,?,?)")
-      .bind(idForm,body.name,body.prefix,body.description||"",body.audience||"public",body.min_age??null,body.recipient_email||"sfec@skyfirst.io.vn",JSON.stringify(body.config),user.id).run();
+      .bind(idForm,body.name,body.prefix,body.description||"",body.audience||"public",body.min_age??null,body.recipient_email||"sfec.vanphong@gmail.com",JSON.stringify(body.config),user.id).run();
     await audit(env,request,user,"Tạo biểu mẫu","form",idForm,{name:body.name});return json({ok:true,id:idForm});
   }
   const formMatch=p.match(/^\/api\/admin\/forms\/([^/]+)$/);
@@ -422,7 +391,6 @@ export async function adminRoute(request,env,url){
     const deny=requirePermission(user,"form.manage");if(deny)return deny;
     const fid=decodeURIComponent(formMatch[1]),body=await readJson(request)||{};
     const current=await env.DB.prepare("SELECT * FROM forms WHERE id=?").bind(fid).first();if(!current)return json({error:"NOT_FOUND"},404);
-    if(!isNetworkAdministrator&&!['student','class','event'].includes(fid))return json({error:"SFN_GOVERNANCE_REQUIRED",message:"Chỉ SFN được quản trị các biểu mẫu ngoài phạm vi đăng ký giáo dục."},403);
     await env.DB.prepare("UPDATE forms SET name=?,prefix=?,description=?,audience=?,min_age=?,enabled=?,recipient_email=?,version=version+1,config_json=?,updated_at=CURRENT_TIMESTAMP,updated_by=? WHERE id=?")
       .bind(body.name||current.name,body.prefix||current.prefix,body.description??current.description,body.audience||current.audience,body.min_age??current.min_age,body.enabled===false?0:1,body.recipient_email||current.recipient_email,JSON.stringify(body.config||JSON.parse(current.config_json)),user.id,fid).run();
     await audit(env,request,user,"Cập nhật biểu mẫu","form",fid,{version:Number(current.version)+1});return json({ok:true});
@@ -501,6 +469,8 @@ export async function adminRoute(request,env,url){
     const deny=requirePermission(user,"privacy.manage");if(deny)return deny;
     const idR=decodeURIComponent(dataReqMatch[1]),body=await readJson(request)||{};
     await env.DB.prepare("UPDATE data_requests SET status=?,note=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(body.status||"Đang xử lý",body.note||"",idR).run();
+    const privacyReq=await env.DB.prepare("SELECT d.id,d.email,u.full_name FROM data_requests d LEFT JOIN users u ON u.id=d.user_id WHERE d.id=?").bind(idR).first();
+    if(privacyReq?.email) await sendTemplatedEmail(env,"privacy_request_status",privacyReq.email,{full_name:privacyReq.full_name||"bạn",reference:idR,status:body.status||"Đang xử lý",note:body.note||""});
     await audit(env,request,user,"Xử lý yêu cầu quyền riêng tư","data_request",idR,body);return json({ok:true});
   }
 
@@ -530,6 +500,13 @@ export async function adminRoute(request,env,url){
     if(a.entity_type==="certificate"&&status==="approved"){
       await env.DB.prepare("UPDATE certificates SET status='approved',approved_by=?,approved_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(user.id,a.entity_id).run();
     }
+    if(a.entity_type==="certificate"){
+      const cert=await env.DB.prepare("SELECT id,full_name,email,code FROM certificates WHERE id=?").bind(a.entity_id).first();
+      if(cert?.email) await sendTemplatedEmail(env,"certificate_status",cert.email,{full_name:cert.full_name||"bạn",reference:cert.code||cert.id,status,note:body.note||"",action:a.action||"Đề nghị GCN/GXN"});
+    } else if(a.entity_type==="submission") {
+      const sub=await env.DB.prepare("SELECT code,full_name,email FROM submissions WHERE code=?").bind(a.entity_id).first();
+      if(sub?.email) await sendTemplatedEmail(env,"approval_status",sub.email,{full_name:sub.full_name||"bạn",reference:sub.code,action:a.action,status,note:body.note||""});
+    }
     await audit(env,request,user,"Quyết định phê duyệt","approval",idA,{status,note:body.note||""});return json({ok:true});
   }
 
@@ -547,6 +524,7 @@ export async function adminRoute(request,env,url){
     const idA=uid("approval");
     await env.DB.prepare("INSERT INTO approvals(id,entity_type,entity_id,action,requested_by,assigned_role,status,due_at) VALUES(?,'certificate',?,'Phê duyệt cấp GCN/GXN',?,'club_secretary','pending',datetime('now','+7 days'))")
       .bind(idA,idC,user.id).run();
+    if(body.email) await sendTemplatedEmail(env,"certificate_requested",body.email,{full_name:body.full_name,reference:idC});
     await audit(env,request,user,"Đề nghị cấp GCN/GXN","certificate",idC,{approval:idA});return json({ok:true,id:idC,approval_id:idA});
   }
   const certMatch=p.match(/^\/api\/admin\/certificates\/([^/]+)$/);
@@ -557,16 +535,18 @@ export async function adminRoute(request,env,url){
       const deny=requirePermission(user,"certificate.issue");if(deny)return deny;
       if(current.status!=="approved")return json({error:"NOT_APPROVED"},409);
       const year=new Date().getFullYear(),kind=current.cert_type.toLowerCase().includes("xác nhận")?"GXN":"GCN";
-      const code=await makeCertificateCode(env,kind,year);
+      const n=await nextCounter(env,`certificate:${kind}:${year}`),code=`${String(n).padStart(3,"0")}/${kind}-SFEC/${year}`;
       await env.DB.prepare("UPDATE certificates SET code=?,status='issued',issued_by=?,issued_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE id=?")
         .bind(code,user.id,idC).run();
       await env.DB.prepare("INSERT INTO certificate_history(certificate_id,action,note,actor_id) VALUES(?,'Phát hành',?,?)").bind(idC,body.note||"",user.id).run();
+      if(current.email) await sendTemplatedEmail(env,"certificate_status",current.email,{full_name:current.full_name||"bạn",reference:code,status:"Đã phát hành bởi hệ thống có thẩm quyền",note:"Vui lòng dùng trang tra cứu chính thức để xác minh."});
       await audit(env,request,user,"Phát hành GCN/GXN","certificate",idC,{code});return json({ok:true,code});
     }
     if(body.action==="revoke"){
       const deny=requirePermission(user,"certificate.issue");if(deny)return deny;
       await env.DB.prepare("UPDATE certificates SET status='revoked',updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(idC).run();
       await env.DB.prepare("INSERT INTO certificate_history(certificate_id,action,note,actor_id) VALUES(?,'Thu hồi',?,?)").bind(idC,body.note||"",user.id).run();
+      if(current.email) await sendTemplatedEmail(env,"certificate_status",current.email,{full_name:current.full_name||"bạn",reference:current.code||idC,status:"Đã thu hồi",note:body.note||""});
       await audit(env,request,user,"Thu hồi GCN/GXN","certificate",idC,{note:body.note||""});return json({ok:true});
     }
     return json({error:"INVALID_ACTION"},400);
@@ -577,6 +557,8 @@ export async function adminRoute(request,env,url){
     const body=await readJson(request)||{},idI=uid("interview");
     await env.DB.prepare("INSERT INTO interviews(id,submission_code,scheduled_at,meeting_url,status,notes,created_by) VALUES(?,?,?,?,?,?,?)")
       .bind(idI,body.submission_code,body.scheduled_at||null,body.meeting_url||"",body.status||"scheduled",body.notes||"",user.id).run();
+    const candidate=await env.DB.prepare("SELECT full_name,email FROM submissions WHERE code=?").bind(body.submission_code).first();
+    if(candidate?.email) await sendTemplatedEmail(env,"interview_schedule",candidate.email,{full_name:candidate.full_name||"bạn",submission_code:body.submission_code,scheduled_at:body.scheduled_at||"Sẽ được thông báo sau",meeting_url:body.meeting_url||"",notes:body.notes||"",status:body.status||"scheduled"});
     await audit(env,request,user,"Tạo lịch phỏng vấn","interview",idI,body);return json({ok:true,id:idI});
   }
   if(p==="/api/admin/evaluations"&&request.method==="POST"){
@@ -598,6 +580,7 @@ export async function adminRoute(request,env,url){
     for(const k of ["priority","status","assigned_to","subject"]) if(k in body){sets.push(`${k}=?`);vals.push(body[k])}
     if(sets.length){vals.push(idT);await env.DB.prepare(`UPDATE tickets SET ${sets.join(",")},updated_at=CURRENT_TIMESTAMP WHERE id=?`).bind(...vals).run()}
     if(body.message) await env.DB.prepare("INSERT INTO ticket_messages(ticket_id,sender_user_id,sender_type,body) VALUES(?,?,'staff',?)").bind(idT,user.id,body.message).run();
+    if(body.status||body.message){const ticket=await env.DB.prepare("SELECT code,submitter_name,email,status FROM tickets WHERE id=?").bind(idT).first();if(ticket?.email) await sendTemplatedEmail(env,"ticket_update",ticket.email,{ticket_code:ticket.code||idT,full_name:ticket.submitter_name||"bạn",status:body.status||ticket.status||"Đang xử lý",message:body.message||"Yêu cầu hỗ trợ đã được cập nhật."});}
     await audit(env,request,user,"Cập nhật ticket","ticket",idT,body);return json({ok:true});
   }
 
@@ -605,17 +588,56 @@ export async function adminRoute(request,env,url){
     const deny=requirePermission(user,"email.manage");if(deny)return deny;
     const rs=await env.DB.prepare("SELECT * FROM email_templates ORDER BY key").all();return json({items:rs.results||[]});
   }
+  if(p==="/api/admin/email-status"&&request.method==="GET"){
+    const deny=requirePermission(user,"email.manage");if(deny)return deny;
+    const [sender,reply,alerts]=await Promise.all([
+      setting(env,"email_sender_name","Câu lạc bộ Giáo dục Sky First (SFEC)"),
+      setting(env,"email_reply_to","sfec@skyfirst.io.vn"),
+      setting(env,"email_internal_alert_recipient","sfec@skyfirst.io.vn")
+    ]);
+    return json({provider:env.RESEND_API_KEY?"resend":env.EMAIL?.send?"cloudflare-binding":"not_configured",from:env.MAIL_FROM||"SFEC <sfec@skyfirst.io.vn>",sender_name:sender,reply_to:reply,alert_recipient:alerts});
+  }
+  if(p==="/api/admin/email-settings"&&request.method==="PUT"){
+    const deny=requirePermission(user,"email.manage");if(deny)return deny;
+    const body=await readJson(request)||{};
+    const recipient=String(body.alert_recipient||"").trim();
+    if(recipient&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient))return json({error:"INVALID_RECIPIENT"},400);
+    await env.DB.prepare("INSERT INTO settings(key,value_json,updated_by) VALUES('email_internal_alert_recipient',?,?) ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json,updated_at=CURRENT_TIMESTAMP,updated_by=excluded.updated_by").bind(JSON.stringify(recipient),user.id).run();
+    await audit(env,request,user,"Cập nhật cấu hình email","email_settings","internal_alert_recipient",{});
+    return json({ok:true});
+  }
+  if(p==="/api/admin/email-test"&&request.method==="POST"){
+    const deny=requirePermission(user,"email.manage");if(deny)return deny;
+    const body=await readJson(request)||{},to=String(body.to||"").trim();
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to))return json({error:"INVALID_RECIPIENT"},400);
+    const result=await sendEmail(env,{to,subject:"[SFEC] Email kiểm tra cấu hình",templateKey:"system_test",html:`<h2>Kiểm tra gửi email SFEC</h2><p>Xin chào, đây là email thử do ${escapeHtml(user.email||"quản trị viên")} khởi tạo.</p><p>Thời gian: ${new Date().toLocaleString("vi-VN",{timeZone:"Asia/Ho_Chi_Minh"})}</p><p>Nếu nhận được thư này, kênh gửi hiện tại đã phản hồi thành công.</p>`,text:`Email thử SFEC. Người gửi yêu cầu: ${user.email||"quản trị viên"}.`});
+    await audit(env,request,user,"Gửi email thử","email",to,{ok:result.ok,error:result.error||null});
+    return json({ok:result.ok,pending:!!result.pending,error:result.error||null,id:result.id||null},result.ok?200:502);
+  }
+  const retryEmailMatch=p.match(/^\/api\/admin\/email-logs\/(\d+)\/retry$/);
+  if(retryEmailMatch&&request.method==="POST"){
+    const deny=requirePermission(user,"email.manage");if(deny)return deny;
+    const log=await env.DB.prepare("SELECT id,status,retry_payload_json,template_key FROM email_logs WHERE id=?").bind(Number(retryEmailMatch[1])).first();
+    if(!log)return json({error:"EMAIL_LOG_NOT_FOUND"},404);
+    if(!["failed","pending"].includes(log.status))return json({error:"EMAIL_NOT_RETRYABLE"},409);
+    if(!log.retry_payload_json)return json({error:"RETRY_PAYLOAD_UNAVAILABLE_SENSITIVE_OR_OLD_LOG"},409);
+    let payload;try{payload=JSON.parse(log.retry_payload_json)}catch{return json({error:"RETRY_PAYLOAD_INVALID"},409)}
+    const result=await sendEmail(env,{...payload,retryPayload:true});
+    await audit(env,request,user,"Thử gửi lại email","email_log",log.id,{ok:result.ok,error:result.error||null});
+    return json({ok:result.ok,pending:!!result.pending,error:result.error||null},result.ok?200:502);
+  }
   const emailTpl=p.match(/^\/api\/admin\/email-templates\/([^/]+)$/);
   if(emailTpl&&request.method==="PUT"){
     const deny=requirePermission(user,"email.manage");if(deny)return deny;
     const key=decodeURIComponent(emailTpl[1]),body=await readJson(request)||{};
+    const exists=await env.DB.prepare("SELECT key FROM email_templates WHERE key=?").bind(key).first();if(!exists)return json({error:"EMAIL_TEMPLATE_NOT_FOUND"},404);
     await env.DB.prepare("UPDATE email_templates SET subject_template=?,html_template=?,text_template=?,enabled=?,updated_at=CURRENT_TIMESTAMP WHERE key=?")
-      .bind(body.subject_template||"",body.html_template||"",body.text_template||"",body.enabled===false?0:1,key).run();
-    await audit(env,request,user,"Cập nhật mẫu email","email_template",key,{});return json({ok:true});
+      .bind(String(body.subject_template||""),String(body.html_template||""),String(body.text_template||""),body.enabled===false?0:1,key).run();
+    await audit(env,request,user,"Cập nhật mẫu email","email_template",key,{enabled:body.enabled!==false});return json({ok:true});
   }
   if(p==="/api/admin/email-logs"&&request.method==="GET"){
     const deny=requirePermission(user,"email.manage");if(deny)return deny;
-    const rs=await env.DB.prepare("SELECT * FROM email_logs ORDER BY id DESC LIMIT 1000").all();return json({items:rs.results||[]});
+    const rs=await env.DB.prepare("SELECT id,to_email,template_key,subject,status,provider_message_id,error,created_at,retry_payload_json FROM email_logs ORDER BY id DESC LIMIT 1000").all();return json({items:(rs.results||[]).map(x=>({...x,retryable:["failed","pending"].includes(x.status)&&!!x.retry_payload_json}))});
   }
 
   if(p==="/api/admin/audit"&&request.method==="GET"){

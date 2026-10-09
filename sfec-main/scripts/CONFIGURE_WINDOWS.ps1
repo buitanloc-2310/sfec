@@ -1,5 +1,5 @@
 $ErrorActionPreference = "Stop"
-Write-Host "=== SFEC — SKY FIRST EDUCATION CLUB | CONFIGURE CLOUDFLARE ===" -ForegroundColor Cyan
+Write-Host "=== THE SKY FIRST ENGLISH CLUB — CONFIGURE CLOUDFLARE ===" -ForegroundColor Cyan
 $root = Split-Path -Parent $PSScriptRoot
 $config = Join-Path $root "wrangler.jsonc"
 $d1 = Read-Host "Paste D1 database_id của sfec-app-db"
