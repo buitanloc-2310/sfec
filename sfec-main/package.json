@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "The Sky First English Club (SFEC) — Cloudflare Production App",
+  "description": "SFEC — Sky First Education Club | Cloudflare Production App",
   "scripts": {
     "dev": "wrangler dev --remote",
     "deploy": "wrangler deploy",

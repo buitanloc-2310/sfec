@@ -26,7 +26,7 @@
 
   "vars": {
     "APP_URL": "https://sfec.skyfirst.io.vn",
-    "MAIL_FROM": "SFEC · The Sky First English Club <sfec@skyfirst.io.vn>",
+    "MAIL_FROM": "SFEC · Sky First Education Club <sfec@skyfirst.io.vn>",
     "GOOGLE_CLIENT_ID": "",
     "GOOGLE_REDIRECT_URI": "https://sfec.skyfirst.io.vn/api/auth/google/callback",
     "TURNSTILE_SITE_KEY": ""

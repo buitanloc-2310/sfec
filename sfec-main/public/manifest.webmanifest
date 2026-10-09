@@ -1,5 +1,5 @@
 {
-  "name": "The Sky First English Club",
+  "name": "SFEC — Sky First Education Club",
   "short_name": "SFEC",
   "start_url": "/#home",
   "display": "standalone",
@@ -16,5 +16,6 @@
       "sizes": "512x512",
       "type": "image/png"
     }
-  ]
+  ],
+  "description": "Câu lạc bộ Giáo dục Sky First thuộc hệ sinh thái Sky First Network."
 }

@@ -76,15 +76,15 @@ export async function publicRoute(request,env,url){
     const mods=await env.DB.prepare("SELECT key,name,category,enabled,sort_order,description FROM modules ORDER BY sort_order").all();
     const forms=await env.DB.prepare("SELECT id,name,prefix,description,audience,min_age,version FROM forms WHERE enabled=1 ORDER BY rowid").all();
     return json({
-      app_name:await getSetting(env,"app_name","The Sky First English Club"),
-      app_short_name:await getSetting(env,"app_short_name","The Sky First English Club"),
+      app_name:await getSetting(env,"app_name","Sky First Education Club"),
+      app_short_name:await getSetting(env,"app_short_name","Sky First Education Club"),
       app_url:env.APP_URL||await getSetting(env,"app_url",""),
       website:await getSetting(env,"website","https://www.skyfirst.io.vn"),
       hotline:await getSetting(env,"hotline","0924 910 210"),
       receiver_email:await getSetting(env,"receiver_email","sfec@skyfirst.io.vn"),
       slogan:await getSetting(env,"brand_slogan",""),
       hero_title:await getSetting(env,"hero_title","Kết nối giáo dục. Phát triển cộng đồng."),
-      hero_text:await getSetting(env,"hero_text","Một cổng chung cho Thành viên, Core Team, Tình nguyện viên, Học sinh/Học viên, lớp học, hoạt động, hồ sơ, GCN/GXN và quản trị The Sky First English Club."),
+      hero_text:await getSetting(env,"hero_text","Không gian giáo dục đa lĩnh vực của SFEC, kết nối người học với chương trình, hoạt động, hồ sơ và thông tin xác minh giấy chứng nhận."),
       hero_cover_url:await getSetting(env,"hero_cover_url","/assets/sfec-cover.png"),
       maintenance_mode:await getSetting(env,"maintenance_mode",false),
       modules:mods.results||[],

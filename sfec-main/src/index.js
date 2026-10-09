@@ -88,7 +88,7 @@ async function handle(request,env,ctx){
   }
 
   if(url.pathname==="/api/health") return json({
-    ok:true,app:"The Sky First English Club",production:true,time:new Date().toISOString(),
+    ok:true,app:"Sky First Education Club",production:true,time:new Date().toISOString(),
     database:!!env.DB,storage:!!env.FILES
   });
 

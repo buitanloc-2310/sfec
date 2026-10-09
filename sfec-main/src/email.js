@@ -17,7 +17,7 @@ export async function sendEmail(env,{to,subject,html,text,templateKey=""}){
         method:"POST",
         headers:{"content-type":"application/json","authorization":`Bearer ${env.RESEND_API_KEY}`},
         body:JSON.stringify({
-          from:env.MAIL_FROM||"SFEC · The Sky First English Club <sfec@skyfirst.io.vn>",
+          from:env.MAIL_FROM||"SFEC · Sky First Education Club <sfec@skyfirst.io.vn>",
           to:[to],subject,html,text
         })
       });
